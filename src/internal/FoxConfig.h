@@ -161,7 +161,7 @@
     #define ENCODER3_SW 17
 
 #elif defined(PICO_BOARD)
-    #define HEARTBEAT_LED 25
+    #define HEARTBEAT_LED 29
     #define NEO_DRIVE_PIN 27
 
 #endif

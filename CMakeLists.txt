@@ -35,8 +35,9 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
+ add_executable(DCSBiosRP2350 DCSBiosRP2350_F4_Helloworld.cpp)
 # add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
-add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
+# add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
 
 
@@ -64,6 +65,7 @@ target_link_libraries(DCSBiosRP2350
         hardware_clocks
         hardware_pwm
         hardware_watchdog
+        hardware_spi
         )
 
 # Add the standard include files to the build
@@ -84,6 +86,8 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/BoardMode.cpp
     src/internal/rs485.cpp
     src/internal/core1_tasks.cpp
+    src/internal/Mcp23s17.cpp
+    src/internal/Mcp23s17.h
 )
 pico_add_extra_outputs(DCSBiosRP2350)
 

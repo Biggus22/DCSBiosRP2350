@@ -1,4 +1,4 @@
-// Padded and checksummed version of: C:/Users/justi/Documents/GitHub/DCSBiosRP2350/DCSBiosRP2350/build/pico-sdk/src/rp2350/boot_stage2/bs2_default.bin
+// Padded and checksummed version of: H:/VSCodeRepositoryClones/DCSBiosRP2350/build/pico-sdk/src/rp2350/boot_stage2/bs2_default.bin
 
 .cpu cortex-m0plus
 .thumb

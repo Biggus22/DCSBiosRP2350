@@ -4,7 +4,8 @@
             "name": "Pico",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${userHome}/.pico-sdk/sdk/2.1.1/**"
+                "${userHome}/.pico-sdk/sdk/2.1.1/**",
+                "C:/Users/j7517/.pico-sdk/sdk/2.1.1/src/rp2_common/hardware_spi/include"
             ],
             "forcedInclude": [
                 "${userHome}/.pico-sdk/sdk/2.1.1/src/common/pico_base_headers/include/pico.h",
@@ -12,7 +13,9 @@
             ],
             "defines": [],
             "compilerPath": "${userHome}/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gcc.exe",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
+            ],
             "cStandard": "c17",
             "cppStandard": "c++14",
             "intelliSenseMode": "linux-gcc-arm"

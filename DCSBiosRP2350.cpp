@@ -1,4 +1,6 @@
+#ifndef PICO_BOARD
 #define PICO_BOARD
+#endif
 
 #include <stdio.h>
 #include "pico/stdlib.h"

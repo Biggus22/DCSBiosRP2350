@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/justi/Documents/GitHub/DCSBiosRP2350/DCSBiosRP2350
+# Install script for directory: H:/VSCodeRepositoryClones/DCSBiosRP2350
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -12,7 +12,7 @@ if(NOT DEFINED CMAKE_INSTALL_CONFIG_NAME)
     string(REGEX REPLACE "^[^A-Za-z0-9_]+" ""
            CMAKE_INSTALL_CONFIG_NAME "${BUILD_TYPE}")
   else()
-    set(CMAKE_INSTALL_CONFIG_NAME "Debug")
+    set(CMAKE_INSTALL_CONFIG_NAME "Release")
   endif()
   message(STATUS "Install configuration: \"${CMAKE_INSTALL_CONFIG_NAME}\"")
 endif()
@@ -34,19 +34,19 @@ endif()
 
 # Set path to fallback-tool for dependency-resolution.
 if(NOT DEFINED CMAKE_OBJDUMP)
-  set(CMAKE_OBJDUMP "C:/Users/justi/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-objdump.exe")
+  set(CMAKE_OBJDUMP "C:/Users/j7517/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-objdump.exe")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("C:/Users/justi/Documents/GitHub/DCSBiosRP2350/DCSBiosRP2350/build/pico-sdk/cmake_install.cmake")
+  include("H:/VSCodeRepositoryClones/DCSBiosRP2350/build/pico-sdk/cmake_install.cmake")
 
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "C:/Users/justi/Documents/GitHub/DCSBiosRP2350/DCSBiosRP2350/build/install_local_manifest.txt"
+  file(WRITE "H:/VSCodeRepositoryClones/DCSBiosRP2350/build/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()
 if(CMAKE_INSTALL_COMPONENT)
@@ -62,6 +62,6 @@ else()
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "C:/Users/justi/Documents/GitHub/DCSBiosRP2350/DCSBiosRP2350/build/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "H:/VSCodeRepositoryClones/DCSBiosRP2350/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

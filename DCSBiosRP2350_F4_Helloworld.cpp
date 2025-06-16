@@ -1,3 +1,6 @@
+#ifndef PICO_BOARD
+#define PICO_BOARD
+#endif
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
@@ -11,11 +14,23 @@
 #include "internal/DeviceAddress.h"
 #include "internal/BoardMode.h"
 #include "internal/rs485.h"
+#include "internal/MCP23S17.h"
+
+// SPI Configuration
+#define SPI_PORT spi0
+#define PIN_MISO 16
+#define PIN_CS   17
+#define PIN_SCK  18
+#define PIN_MOSI 19
+
+// MCP23S17 Configuration
+#define MCP23S17_ADDRESS 0x00  // Hardware address (A2=A1=A0=0)
 
 // Pin definitions
-#define CONSOLE_LIGHTING_INPUT 26   // ADC0 input
-#define O2_PSI_SERVO_PIN 16         // Servo on GPIO 16 (slice 0)
+#define CONSOLE_LIGHTING_LED 25   // Console LED on GPIO 25
+#define O2_PSI_SERVO_PIN 15         // Servo on GPIO 16 (slice 0)
 #define CONSOLE_LIGHTING_POT_PIN 26 // ADC0 input for potentiometer (same as CONSOLE_LIGHTING_INPUT)
+// Removed: #define PITOT_HEAT_ON_PIN 14 // GPIO for pitot heat on/off - now using MCP23S17 GPA0
 
 // Servo timing constants (SG90)
 #define O2_PSI_MAX 167931 // Calibrated so 26869 = ~80 PSI
@@ -31,14 +46,19 @@
 
 unsigned int lastBrightness = 0;
 
+// MCP23S17 instance
+MCP23S17 ioExpander(SPI_PORT, PIN_CS, PIN_SCK, PIN_MOSI, PIN_MISO, MCP23S17_ADDRESS);
+
 // Function to set servo angle from 0–180 degrees
 void set_servo_angle(float angle)
 {
-    if (angle < 0.0f) angle = 0.0f;
-    if (angle > 180.0f) angle = 180.0f;
+    if (angle < 0.0f)
+        angle = 0.0f;
+    if (angle > 180.0f)
+        angle = 180.0f;
 
     float pulse_width_us = O2_PSI_SERVO_MIN_US +
-        (angle / 180.0f) * (O2_PSI_SERVO_MAX_US - O2_PSI_SERVO_MIN_US);
+                           (angle / 180.0f) * (O2_PSI_SERVO_MAX_US - O2_PSI_SERVO_MIN_US);
 
     // Convert µs pulse width to PWM level
     float duty_cycle = pulse_width_us / 20000.0f; // 20ms period
@@ -71,13 +91,37 @@ void onPltIntLightConsoleBrightnessChange(unsigned int newValue)
     {
         lastBrightness = newValue;
         uint16_t pwmVal = newValue >> 8; // Map 0–65535 to 0–255
-        pwm_set_gpio_level(CONSOLE_LIGHTING_POT_PIN, pwmVal);
+        pwm_set_gpio_level(CONSOLE_LIGHTING_LED, pwmVal);
     }
 }
 DcsBios::IntegerBuffer pltIntLightConsoleBrightnessBuffer(0x2d6e, 0xffff, 0, onPltIntLightConsoleBrightnessChange);
 
 // DCS-BIOS potentiometer input from ADC0 to DCS
 DcsBios::PotentiometerEWMA<POLL_EVERY_TIME, 1024> pltIntLightConsoleBrightness("PLT_INT_LIGHT_CONSOLE_BRIGHTNESS", CONSOLE_LIGHTING_POT_PIN);
+
+// Custom switch class for MCP23S17
+class MCP23S17Switch2Pos {
+private:
+    const char* control_name;
+    MCP23S17* expander;
+    uint8_t pin;
+    bool last_state;
+    
+public:
+    MCP23S17Switch2Pos(const char* control, MCP23S17* exp, uint8_t pin_num) 
+        : control_name(control), expander(exp), pin(pin_num), last_state(false) {}
+    
+    void pollInput() {
+        bool current_state = expander->digitalRead(pin);
+        if (current_state != last_state) {
+            last_state = current_state;
+            DcsBios::sendDcsBiosMessage(control_name, current_state ? "1" : "0");
+        }
+    }
+};
+
+// Create pitot heat switch on MCP23S17 GPA0 (pin 0)
+MCP23S17Switch2Pos pitotHeatSwitch("PLT_PITOT_HEAT", &ioExpander, 0);
 
 void sweep_servo()
 {
@@ -133,12 +177,20 @@ int main()
         break;
     }
 
+    // Initialize MCP23S17
+    //printf("Initializing MCP23S17...\n");
+    ioExpander.begin();
+    
+    // Configure GPA0 as input with pull-up for the pitot heat switch
+    ioExpander.pinMode(0, INPUT_PULLUP);
+   // printf("MCP23S17 initialized, GPA0 configured as input with pull-up\n");
+
     // Launch core1 for DCS-BIOS RS485/USB task
     multicore_launch_core1(DcsBios::core1_task);
 
     // Initialize onboard LED PWM
-    gpio_set_function(CONSOLE_LIGHTING_POT_PIN, GPIO_FUNC_PWM);
-    uint led_slice = pwm_gpio_to_slice_num(CONSOLE_LIGHTING_POT_PIN);
+    gpio_set_function(CONSOLE_LIGHTING_LED, GPIO_FUNC_PWM);
+    uint led_slice = pwm_gpio_to_slice_num(CONSOLE_LIGHTING_LED);
     pwm_set_wrap(led_slice, 255); // 8-bit PWM for LED
     pwm_set_enabled(led_slice, true);
 
@@ -162,11 +214,12 @@ int main()
 
     // DCS-BIOS init
     DcsBios::setup();
-    printf("DCS-BIOS setup complete\n");
+    //printf("DCS-BIOS setup complete\n");
 
     while (true)
     {
         DcsBios::loop();            // Main DCS-BIOS handler
+        pitotHeatSwitch.pollInput(); // Poll the MCP23S17 switch
         DcsBios::updateHeartbeat(); // Blink status LED (if connected)
         sleep_us(10);               // Slight delay
     }

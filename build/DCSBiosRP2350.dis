@@ -49,13 +49,13 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  22 .debug_rnglists 000054d9  00000000  00000000  00077338  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 23 .debug_line   00027f39  00000000  00000000  0007c811  2**0
+ 23 .debug_line   00027f2c  00000000  00000000  0007c811  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_str    0000ccab  00000000  00000000  000a474a  2**0
+ 24 .debug_str    0000cc9e  00000000  00000000  000a473d  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 25 .debug_frame  00003ad4  00000000  00000000  000b13f8  2**2
+ 25 .debug_frame  00003ad4  00000000  00000000  000b13dc  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 26 .debug_line_str 00000286  00000000  00000000  000b4ecc  2**0
+ 26 .debug_line_str 00000286  00000000  00000000  000b4eb0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 H:/VSCodeRepositoryClones/DCSBiosRP2350/build/DCSBiosRP2350.elf:     file format elf32-littlearm

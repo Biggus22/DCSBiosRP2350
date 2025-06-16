@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
- add_executable(DCSBiosRP2350 DCSBiosRP2350_F4_Helloworld.cpp)
+ add_executable(DCSBiosRP2350 Testing_sketch.cpp)
 # add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
 # add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)

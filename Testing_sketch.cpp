@@ -23,13 +23,14 @@
 #define PIN_SCK  18
 #define PIN_MOSI 19
 
+// MCP23S17 Configuration
+#define MCP23S17_ADDRESS 0x00  // Hardware address (A2=A1=A0=0)
 
 // Pin definitions
 #define CONSOLE_LIGHTING_LED 25   // Console LED on GPIO 25
 #define O2_PSI_SERVO_PIN 15         // Servo on GPIO 16 (slice 0)
 #define CONSOLE_LIGHTING_POT_PIN 26 // ADC0 input for potentiometer (same as CONSOLE_LIGHTING_INPUT)
-#define PITOT_HEAT_ON_PIN 14 // GPIO for pitot heat on/off
-
+// Removed: #define PITOT_HEAT_ON_PIN 14 // GPIO for pitot heat on/off - now using MCP23S17 GPA0
 
 // Servo timing constants (SG90)
 #define O2_PSI_MAX 167931 // Calibrated so 26869 = ~80 PSI
@@ -44,6 +45,9 @@
 #define CONSOLE_DIMMING_DEADZONE 10     // Deadzone for brightness changes
 
 unsigned int lastBrightness = 0;
+
+// MCP23S17 instance
+MCP23S17 ioExpander(SPI_PORT, PIN_CS, PIN_SCK, PIN_MOSI, PIN_MISO, MCP23S17_ADDRESS);
 
 // Function to set servo angle from 0–180 degrees
 void set_servo_angle(float angle)
@@ -95,10 +99,29 @@ DcsBios::IntegerBuffer pltIntLightConsoleBrightnessBuffer(0x2d6e, 0xffff, 0, onP
 // DCS-BIOS potentiometer input from ADC0 to DCS
 DcsBios::PotentiometerEWMA<POLL_EVERY_TIME, 1024> pltIntLightConsoleBrightness("PLT_INT_LIGHT_CONSOLE_BRIGHTNESS", CONSOLE_LIGHTING_POT_PIN);
 
-// If the correct class is Switch2Pos, ensure the header is included; otherwise, use the correct class name as defined in your DcsBios library.
-// Example fix if the class is named Switch2PosT (common in some DCS-BIOS versions):
-DcsBios::Switch2Pos pitotHeatSwitch("PITOT_HEAT", PITOT_HEAT_ON_PIN);
+// Custom switch class for MCP23S17
+class MCP23S17Switch2Pos {
+private:
+    const char* control_name;
+    MCP23S17* expander;
+    uint8_t pin;
+    bool last_state;
+    
+public:
+    MCP23S17Switch2Pos(const char* control, MCP23S17* exp, uint8_t pin_num) 
+        : control_name(control), expander(exp), pin(pin_num), last_state(false) {}
+    
+    void pollInput() {
+        bool current_state = expander->digitalRead(pin);
+        if (current_state != last_state) {
+            last_state = current_state;
+            DcsBios::sendDcsBiosMessage(control_name, current_state ? "1" : "0");
+        }
+    }
+};
 
+// Create pitot heat switch on MCP23S17 GPA0 (pin 0)
+MCP23S17Switch2Pos pitotHeatSwitch("PLT_PITOT_HEAT", &ioExpander, 0);
 
 void sweep_servo()
 {
@@ -154,6 +177,14 @@ int main()
         break;
     }
 
+    // Initialize MCP23S17
+    //printf("Initializing MCP23S17...\n");
+    ioExpander.begin();
+    
+    // Configure GPA0 as input with pull-up for the pitot heat switch
+    ioExpander.pinMode(0, INPUT_PULLUP);
+   // printf("MCP23S17 initialized, GPA0 configured as input with pull-up\n");
+
     // Launch core1 for DCS-BIOS RS485/USB task
     multicore_launch_core1(DcsBios::core1_task);
 
@@ -183,11 +214,12 @@ int main()
 
     // DCS-BIOS init
     DcsBios::setup();
-    printf("DCS-BIOS setup complete\n");
+    //printf("DCS-BIOS setup complete\n");
 
     while (true)
     {
         DcsBios::loop();            // Main DCS-BIOS handler
+        pitotHeatSwitch.pollInput(); // Poll the MCP23S17 switch
         DcsBios::updateHeartbeat(); // Blink status LED (if connected)
         sleep_us(10);               // Slight delay
     }

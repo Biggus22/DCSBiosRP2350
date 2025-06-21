@@ -35,7 +35,8 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
- add_executable(DCSBiosRP2350 Testing_sketch.cpp)
+# add_executable(DCSBiosRP2350 Testing_sketch.cpp)
+ add_executable(DCSBiosRP2350 ADS1115_example.cpp)
 # add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
 # add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
@@ -87,7 +88,7 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/rs485.cpp
     src/internal/core1_tasks.cpp
     src/internal/Mcp23s17.cpp
-    src/internal/Mcp23s17.h
-)
+
+    )
 pico_add_extra_outputs(DCSBiosRP2350)
 

@@ -6,6 +6,7 @@
 #endif
 
 #include <stdint.h>
+#include <cstdio>
 
 
 #include "internal/ExportStreamListener.h"
@@ -21,6 +22,7 @@
 #include "internal/BoardMode.h"
 #include "internal/core1_tasks.h"
 #include "internal/FoxConfig.h"
+#include "internal/MCP23S17.h"
 
 
 namespace DcsBios {

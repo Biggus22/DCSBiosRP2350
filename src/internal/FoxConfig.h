@@ -27,7 +27,7 @@
 
     #define UART0_TX 0
     #define UART0_RX 1
-    #define RS485_EN 2
+    #define RS485_EN 2    // RS485 driver enable pin
 
     #define ADDR0 36
     #define ADDR1 37
@@ -163,6 +163,23 @@
 #elif defined(PICO_BOARD)
     #define HEARTBEAT_LED 29
     #define NEO_DRIVE_PIN 27
+
+    #define UART0_TX 0
+    #define UART0_RX 1
+    #define RS485_EN 2
+    
+    // Define the Pico GPIO pin connected to the shared INTA line of all MCP23S17s
+    #define MCP23S17_SHARED_INTA_PIN 20 // Example: Connect all MCP23S17 INTA pins to Pico GPIO 20
+
+    // Define the Pico GPIO pin connected to the shared INTB line of all MCP23S17s
+    #define MCP23S17_SHARED_INTB_PIN 21 // Example: Connect all MCP23S17 INTB pins to Pico GPIO 21
+
+
+
+    #define ADDR0 15
+    #define ADDR1 14
+    #define ADDR2 13
+    #define ADDR3 12
 
 #endif
 

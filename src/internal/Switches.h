@@ -3,17 +3,21 @@
 
 #include <math.h>
 #include "pico/stdlib.h"
-#include "aw9523b.h"
+#include "aw9523b.h" // Include for AW9523B support
+#include "MCP23S17.h" // Include for MCP23S17 support
 
 namespace DcsBios {
 
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
+	// Assuming POLL_EVERY_TIME is defined as 0 in DcsBios.h or FoxConfig.h
+	template <unsigned long pollIntervalMs = 0> // Changed default to 0 for "POLL_EVERY_TIME"
 	class Switch2PosT : PollingInput, public ResettableInput {
 	private:
 		const char* msg_;
 		char pin_;
-		bool useExpander_;
-		AW9523B* expander_;
+		bool useAwExpander_; // Flag for AW9523B
+		AW9523B* awExpander_; // Pointer for AW9523B
+		bool useMcpExpander_; // Flag for MCP23S17
+		MCP23S17* mcpExpander_; // Pointer for MCP23S17
 		uint8_t expanderPin_;
 		char debounceSteadyState_;
 		char lastState_;
@@ -22,12 +26,21 @@ namespace DcsBios {
 		unsigned long lastDebounceTime = 0;
 
 		char readInput() {
-			if (useExpander_ && expander_) return expander_->readPin(expanderPin_);
+			if (useAwExpander_ && awExpander_) return awExpander_->readPin(expanderPin_);
+			if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(expanderPin_);
 			return gpio_get(pin_);
 		}
 
-		void resetState() {
+		// Overrides PollingInput::resetState()
+		void resetState() override {
 			lastState_ = (lastState_ == 0) ? -1 : 0;
+			// Further reset logic if needed
+		}
+
+		// Overrides ResettableInput::resetThisState()
+		void resetThisState() override {
+			// This function will call the actual reset logic implemented in resetState()
+			this->resetState();
 		}
 
 		void pollInput() {
@@ -48,154 +61,81 @@ namespace DcsBios {
 		}
 
 	public:
+		// Constructor for direct Pico GPIO pins
 		Switch2PosT(const char* msg, char pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(false)
-		{
-			msg_ = msg;
-			pin_ = pin;
+			PollingInput(pollIntervalMs), msg_(msg), pin_(pin), useAwExpander_(false), awExpander_(nullptr),
+			useMcpExpander_(false), mcpExpander_(nullptr), expanderPin_(0), reverse_(reverse), debounceDelay_(debounceDelay) {
 			gpio_init(pin_);
-			gpio_pull_up(pin_);
+			gpio_pull_up(pin_); // Assume active-low switch requiring pull-up
 			gpio_set_dir(pin_, GPIO_IN);
-			debounceDelay_ = debounceDelay;
-			reverse_ = reverse;
-			lastState_ = gpio_get(pin_);
-			if (reverse_) lastState_ = !lastState_;
+			debounceSteadyState_ = readInput();
+			lastState_ = debounceSteadyState_;
+			lastDebounceTime = to_ms_since_boot(get_absolute_time());
 		}
 
-		Switch2PosT(const char* msg, AW9523B* expander, uint8_t pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(true), expander_(expander), expanderPin_(pin)
-		{
-			msg_ = msg;
-			debounceDelay_ = debounceDelay;
-			reverse_ = reverse;
-			expander_->setPinInput(expanderPin_);
-			lastState_ = readInput();
-			if (reverse_) lastState_ = !lastState_;
+		// Constructor for AW9523B expander
+		Switch2PosT(const char* msg, AW9523B* expander, uint8_t expanderPin, bool reverse = false, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), pin_(0), useAwExpander_(true), awExpander_(expander),
+			useMcpExpander_(false), mcpExpander_(nullptr), expanderPin_(expanderPin), reverse_(reverse), debounceDelay_(debounceDelay) {
+			// Pins should be configured as INPUT_PULLUP by the expander's setup
+            // No pinMode call here, as AW9523B doesn't have it as per previous error.
+			debounceSteadyState_ = readInput();
+			lastState_ = debounceSteadyState_;
+			lastDebounceTime = to_ms_since_boot(get_absolute_time());
 		}
 
-		void SetControl(const char* msg) { msg_ = msg; }
-		void resetThisState() { this->resetState(); }
-	};
-	typedef Switch2PosT<> Switch2Pos;
-
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, unsigned long coverDelayMs = 200>
-	class SwitchWithCover2PosT : PollingInput, public ResettableInput {
-	private:
-		const char* switchMsg_;
-		const char* coverMsg_;
-		char pin_;
-		bool useExpander_;
-		AW9523B* expander_;
-		uint8_t expanderPin_;
-		char lastState_;
-		char switchState_;
-		bool reverse_;
-		unsigned long debounceDelay_;
-		unsigned long lastDebounceTime = 0;
-
-		enum switchCoverStateEnum { stOFF_CLOSED = 0, stOFF_OPEN = 1, stON_OPEN = 2 };
-		switchCoverStateEnum switchCoverState_;
-		unsigned long lastSwitchStateTime;
-
-		char readInput() {
-			if (useExpander_ && expander_) return expander_->readPin(expanderPin_);
-			return gpio_get(pin_);
-		}
-
-		void resetState() {
-			lastState_ = (lastState_ == 0) ? -1 : 0;
-			if (switchState_ && !reverse_) switchCoverState_ = stOFF_CLOSED;
-			else switchCoverState_ = stON_OPEN;
-			lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-		}
-
-		void pollInput() {
-			char state = readInput();
-			if (reverse_) state = !state;
-			if (state != lastState_) lastDebounceTime = to_ms_since_boot(get_absolute_time());
-			if (state != switchState_ &&
-				(to_ms_since_boot(get_absolute_time()) - lastDebounceTime) > debounceDelay_) {
-				if (to_ms_since_boot(get_absolute_time()) - lastSwitchStateTime > coverDelayMs) {
-					if (state) {
-						if (switchCoverState_ == stON_OPEN && tryToSendDcsBiosMessage(switchMsg_, "0")) {
-							switchCoverState_ = stOFF_OPEN;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-						} else if (switchCoverState_ == stOFF_OPEN && tryToSendDcsBiosMessage(coverMsg_, "0")) {
-							switchCoverState_ = stOFF_CLOSED;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-							switchState_ = state;
-						}
-					} else {
-						if (switchCoverState_ == stOFF_CLOSED && tryToSendDcsBiosMessage(coverMsg_, "1")) {
-							switchCoverState_ = stOFF_OPEN;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-						} else if (switchCoverState_ == stOFF_OPEN && tryToSendDcsBiosMessage(switchMsg_, "1")) {
-							switchCoverState_ = stON_OPEN;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-							switchState_ = state;
-						}
-					}
-				}
+		// Constructor for MCP23S17 expander
+		Switch2PosT(const char* msg, MCP23S17* expander, uint8_t expanderPin, bool reverse = false, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), pin_(0), useAwExpander_(false), awExpander_(nullptr),
+			useMcpExpander_(true), mcpExpander_(expander), expanderPin_(expanderPin), reverse_(reverse), debounceDelay_(debounceDelay) {
+			if (mcpExpander_) {
+				mcpExpander_->pinMode(expanderPin_, INPUT_PULLUP);
 			}
-			lastState_ = state;
+			debounceSteadyState_ = readInput();
+			lastState_ = debounceSteadyState_;
+			lastDebounceTime = to_ms_since_boot(get_absolute_time());
 		}
-
-	public:
-		SwitchWithCover2PosT(const char* switchMsg, const char* coverMsg, char pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(false)
-		{
-			switchMsg_ = switchMsg;
-			coverMsg_ = coverMsg;
-			pin_ = pin;
-			gpio_init(pin_);
-			gpio_pull_up(pin_);
-			gpio_set_dir(pin_, GPIO_IN);
-			switchState_ = gpio_get(pin_);
-			lastState_ = switchState_;
-			reverse_ = reverse;
-			debounceDelay_ = debounceDelay;
-			resetState();
-		}
-
-		SwitchWithCover2PosT(const char* switchMsg, const char* coverMsg, AW9523B* expander, uint8_t pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(true), expander_(expander), expanderPin_(pin)
-		{
-			switchMsg_ = switchMsg;
-			coverMsg_ = coverMsg;
-			reverse_ = reverse;
-			expander_->setPinInput(expanderPin_);
-			debounceDelay_ = debounceDelay;
-			switchState_ = readInput();
-			lastState_ = switchState_;
-			resetState();
-		}
-
-		void resetThisState() { this->resetState(); }
 	};
-	typedef SwitchWithCover2PosT<> SwitchWithCover2Pos;
 
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, int numPositions = 3>
-	class SwitchMultiPosT : PollingInput, public ResettableInput {
+
+	template <unsigned long pollIntervalMs = 0, unsigned int numPositions = 3> // Changed default to 0 for "POLL_EVERY_TIME"
+	class SwitchMultiPosT : PollingInput, public ResettableInput { // Added public ResettableInput explicitly for clarity, though it might be inherited via PollingInput
 	private:
 		const char* msg_;
-		const uint8_t* pins_;
-		bool useExpander_;
-		AW9523B* expander_;
-		uint8_t expanderPins_[5];
-		char lastState_;
+		const uint8_t* pins_; // Array of Pico GPIO pins
+		AW9523B* awExpander_; // Pointer for AW9523B
+		MCP23S17* mcpExpander_; // Pointer for MCP23S17
+		const uint8_t* expPins_; // Array of expander pins
+		bool useAwExpander_; // Flag for AW9523B
+		bool useMcpExpander_; // Flag for MCP23S17
+		char lastState_; // Stores the index of the currently active pin (0 to numPositions-1)
 		unsigned long debounceDelay_;
-		unsigned long lastDebounceTime_ = 0;
-	
-		char readInput(uint8_t index) {
-			if (useExpander_ && expander_)
-				return expander_->readPin(expanderPins_[index]);
+		unsigned long lastDebounceTime_;
+
+		char readInput(int index) {
+			if (useAwExpander_ && awExpander_) return awExpander_->readPin(expPins_[index]);
+			if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(expPins_[index]);
 			return gpio_get(pins_[index]);
 		}
-	
-		void resetState() {
-			lastState_ = -1;
+
+		// Overrides PollingInput::resetState()
+		void resetState() override {
+			lastState_ = -1; // No position active initially
+			for (int i = 0; i < numPositions; ++i) {
+				if (readInput(i) == 0) { // Assuming active-low
+					lastState_ = i;
+					break;
+				}
+			}
+			lastDebounceTime_ = to_ms_since_boot(get_absolute_time());
 		}
-	
+
+		// Overrides ResettableInput::resetThisState()
+		void resetThisState() override {
+			// This function will call the actual reset logic implemented in resetState()
+			this->resetState();
+		}
+
 		void pollInput() {
 			unsigned long now = to_ms_since_boot(get_absolute_time());
 			for (int i = 0; i < numPositions; ++i) {
@@ -209,40 +149,46 @@ namespace DcsBios {
 							lastDebounceTime_ = now;
 						}
 					}
-					break;
+					break; // Found the active switch, exit loop
 				}
 			}
 		}
 	
 	public:
+		// Constructor for direct Pico GPIO pins
 		SwitchMultiPosT(const char* msg, const uint8_t* pins, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), msg_(msg), pins_(pins), useExpander_(false), debounceDelay_(debounceDelay) {
+			PollingInput(pollIntervalMs), msg_(msg), pins_(pins), awExpander_(nullptr), mcpExpander_(nullptr), expPins_(nullptr),
+			useAwExpander_(false), useMcpExpander_(false), debounceDelay_(debounceDelay) {
 			for (int i = 0; i < numPositions; ++i) {
-				gpio_init(pins[i]);
-				gpio_pull_up(pins[i]);
-				gpio_set_dir(pins[i], GPIO_IN);
+				gpio_init(pins_[i]);
+				gpio_pull_up(pins_[i]); // Assume active-low requiring pull-up
+				gpio_set_dir(pins_[i], GPIO_IN);
 			}
-			resetState();
+			resetState(); // Call the actual reset function
 		}
 	
-		SwitchMultiPosT(const char* msg, AW9523B* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), msg_(msg), useExpander_(true), expander_(expander), debounceDelay_(debounceDelay) {
-			for (int i = 0; i < numPositions; ++i) {
-				expanderPins_[i] = pins[i];
-				expander_->setPinInput(pins[i]);
-			}
-			resetState();
+		// Constructor for AW9523B expander
+		SwitchMultiPosT(const char* msg, AW9523B* expander, const uint8_t* expPins, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), pins_(nullptr), awExpander_(expander), mcpExpander_(nullptr), expPins_(expPins),
+			useAwExpander_(true), useMcpExpander_(false), debounceDelay_(debounceDelay) {
+			// Pins should be configured as INPUT_PULLUP by the expander's setup
+            // No pinMode call here for AW9523B.
+			resetState(); // Call the actual reset function
 		}
-	
-		void SetControl(const char* msg) { msg_ = msg; }
-		void resetThisState() { resetState(); }
-	};
-	
 
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 3> Switch3Pos;
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 4> Switch4Pos;
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 5> Switch5Pos;
+		// Constructor for MCP23S17 expander
+		SwitchMultiPosT(const char* msg, MCP23S17* expander, const uint8_t* expPins, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), pins_(nullptr), awExpander_(nullptr), mcpExpander_(expander), expPins_(expPins),
+			useAwExpander_(false), useMcpExpander_(true), debounceDelay_(debounceDelay) {
+			if (mcpExpander_) {
+				for (int i = 0; i < numPositions; ++i) {
+					mcpExpander_->pinMode(expPins_[i], INPUT_PULLUP);
+				}
+			}
+			resetState(); // Call the actual reset function
+		}
+	};
 
 } // namespace DcsBios
 
-#endif
+#endif // __DCSBIOS_SWITCHES_H

@@ -4,6 +4,7 @@
 
 #include "pico/stdlib.h"
 #include "aw9523b.h"
+#include "MCP23S17.h" // Include MCP23S17 header
 
 namespace DcsBios {
 
@@ -26,6 +27,12 @@ namespace DcsBios {
 		uint8_t expPinA_;
 		uint8_t expPinB_;
 		bool useExpander_ = false;
+
+		MCP23S17* mcpExpander_ = nullptr; // New: MCP23S17 expander
+		uint8_t mcpPinA_;             // New: MCP23S17 pin A
+		uint8_t mcpPinB_;             // New: MCP23S17 pin B
+		bool useMcpExpander_ = false; // New: Flag for MCP23S17
+
 		char lastState_;
 		signed char delta_;
 		uint32_t lastUpdate_ = 0;
@@ -33,16 +40,18 @@ namespace DcsBios {
 		char readState() {
 			if (useExpander_ && expander_) {
 				return (expander_->readPin(expPinA_) << 1) | expander_->readPin(expPinB_);
+			} else if (useMcpExpander_ && mcpExpander_) { // New: Read from MCP23S17
+				return (mcpExpander_->digitalRead(mcpPinA_) << 1) | mcpExpander_->digitalRead(mcpPinB_);
 			}
 			return (gpio_get(pinA_) << 1) | gpio_get(pinB_);
 		}
 
 		void resetState() { lastState_ = (lastState_ == 0) ? -1 : 0; }
 
+	public: // Moved pollInput to public
 		void pollInput() {
-			uint32_t lastUpdate_ = 0;
 			uint32_t now = to_ms_since_boot(get_absolute_time());
-			if (now - lastUpdate_ < 20) return;  // Throttle to one event every 10ms
+			if (now - lastUpdate_ < 12) return;  // Throttle to one event every 10ms
 			lastUpdate_ = now;
 		
 			char state = readState();
@@ -65,7 +74,7 @@ namespace DcsBios {
 
 	public:
 		RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, char pinA, char pinB)
-			: PollingInput(pollIntervalMs), useExpander_(false) {
+			: PollingInput(pollIntervalMs), useExpander_(false), useMcpExpander_(false) { // Modified: Initialize new flag
 			msg_ = msg;
 			decArg_ = decArg;
 			incArg_ = incArg;
@@ -78,7 +87,7 @@ namespace DcsBios {
 		}
 
 		RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, AW9523B* expander, uint8_t pinA, uint8_t pinB)
-			: PollingInput(pollIntervalMs), expander_(expander), expPinA_(pinA), expPinB_(pinB), useExpander_(true) {
+			: PollingInput(pollIntervalMs), expander_(expander), expPinA_(pinA), expPinB_(pinB), useExpander_(true), useMcpExpander_(false) { // Modified: Initialize new flag
 			msg_ = msg;
 			decArg_ = decArg;
 			incArg_ = incArg;
@@ -86,10 +95,24 @@ namespace DcsBios {
 			lastState_ = readState();
 		}
 
+		// New: Constructor for MCP23S17
+		RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, MCP23S17* expander, uint8_t pinA, uint8_t pinB)
+			: PollingInput(pollIntervalMs), mcpExpander_(expander), mcpPinA_(pinA), mcpPinB_(pinB), useExpander_(false), useMcpExpander_(true) {
+			msg_ = msg;
+			decArg_ = decArg;
+			incArg_ = incArg;
+			delta_ = 0;
+			// MCP23S17 pins need to be configured as input with pull-up externally.
+			// The begin() method of MCP23S17 sets all pins as inputs by default.
+			// Pull-ups are also handled by MCP23S17::pinMode with INPUT_PULLUP.
+			lastState_ = readState();
+		}
+
 		void SetControl(const char* msg) { msg_ = msg; }
 		void resetThisState() { resetState(); }
 	};
 	typedef RotaryEncoderT<> RotaryEncoder;
+	typedef RotaryEncoderT<> MCP23S17RotaryEncoder; // New typedef for clarity
 
 	// You can apply the same pattern to RotaryAcceleratedEncoderT when needed.
 

@@ -4,316 +4,317 @@
 #include <math.h>
 #include "pico/stdlib.h"
 #include "aw9523b.h"
-#include "MCP23S17.h" // Include MCP23S17 header
+#include "internal/MCP23S17.h" // Include MCP23S17 header
+
+// Define polling interval constants if they are not already defined
+#ifndef POLL_EVERY_TIME
+#define POLL_EVERY_TIME 0
+#endif
+
+#ifndef POLL_INTERVAL_100_MS
+#define POLL_INTERVAL_100_MS 100
+#endif
 
 namespace DcsBios {
 
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
-	class Switch2PosT : PollingInput, public ResettableInput {
-	private:
-		const char* msg_;
-		char pin_;
-		bool useExpander_;
-		AW9523B* expander_;
-		uint8_t expanderPin_;
+    template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
+    class Switch2PosT : PollingInput, public ResettableInput {
+    private:
+        const char* msg_;
+        char pin_;
+        AW9523B* awExpander_;
+        MCP23S17* mcpExpander_;
+        bool useAwExpander_;
+        bool useMcpExpander_;
+        uint8_t expanderPin_;
+        char debounceSteadyState_;
+        char lastState_;
+        bool reverse_;
+        unsigned long debounceDelay_;
+        unsigned long lastDebounceTime = 0;
 
-		bool useMcpExpander_; // New: Flag for MCP23S17
-		MCP23S17* mcpExpander_; // New: MCP23S17 expander
-		uint8_t mcpExpanderPin_; // New: MCP23S17 pin
+    protected: // This section is for internal helper methods
+        char readInput() {
+            if (useAwExpander_ && awExpander_) return awExpander_->readPin(expanderPin_);
+            if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(expanderPin_);
+            return gpio_get(pin_);
+        }
 
-		char debounceSteadyState_;
-		char lastState_;
-		bool reverse_;
-		unsigned long debounceDelay_;
-		unsigned long lastDebounceTime = 0;
+    public: // Changed access specifier for overridden methods
+        void resetThisState() override {
+            lastState_ = (lastState_ == 0) ? -1 : 0;
+        }
+        
+        // Added override for PollingInput's resetState
+        void resetState() override { 
+            resetThisState(); // Call the specific reset logic
+        }
 
-		char readInput() {
-			if (useExpander_ && expander_) return expander_->readPin(expanderPin_);
-			if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(mcpExpanderPin_); // New: Read from MCP23S17
-			return gpio_get(pin_);
-		}
+        void pollInput() override {
+            char state = readInput();
+            if (reverse_) state = !state;
+            unsigned long now = to_ms_since_boot(get_absolute_time());
+            if (state != debounceSteadyState_) {
+                lastDebounceTime = now;
+                debounceSteadyState_ = state;
+            }
+            if ((now - lastDebounceTime) >= debounceDelay_) {
+                if (state != lastState_) {
+                    if (tryToSendDcsBiosMessage(msg_, state == 0 ? "0" : "1")) {
+                        lastState_ = state;
+                    }
+                }
+            }
+        }
 
-		void resetState() {
-			lastState_ = (lastState_ == 0) ? -1 : 0;
-		}
+    public:
+        Switch2PosT(const char* msg, char pin, bool reverse = false, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pin_(pin), reverse_(reverse), debounceDelay_(debounceDelay),
+            awExpander_(nullptr), mcpExpander_(nullptr), useAwExpander_(false), useMcpExpander_(false) {
+            gpio_init(pin_);
+            gpio_pull_up(pin_);
+            gpio_set_dir(pin_, GPIO_IN);
+            debounceSteadyState_ = readInput();
+            if (reverse_) debounceSteadyState_ = !debounceSteadyState_;
+            lastState_ = debounceSteadyState_ == 0 ? -1 : 0;
+        }
 
-	public: // Moved pollInput to public
-		void pollInput() {
-			char state = readInput();
-			if (reverse_) state = !state;
-			unsigned long now = to_ms_since_boot(get_absolute_time());
-			if (state != debounceSteadyState_) {
-				lastDebounceTime = now;
-				debounceSteadyState_ = state;
-			}
-			if ((now - lastDebounceTime) >= debounceDelay_) {
-				if (debounceSteadyState_ != lastState_) {
-					if (tryToSendDcsBiosMessage(msg_, state == 1 ? "0" : "1")) {
-						lastState_ = debounceSteadyState_;
-					}
-				}
-			}
-		}
+        Switch2PosT(const char* msg, AW9523B* expander, uint8_t expanderPin, bool reverse = false, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), expanderPin_(expanderPin), reverse_(reverse), debounceDelay_(debounceDelay),
+            awExpander_(expander), useAwExpander_(true),
+            mcpExpander_(nullptr), useMcpExpander_(false) {
+            debounceSteadyState_ = readInput();
+            if (reverse_) debounceSteadyState_ = !debounceSteadyState_;
+            lastState_ = debounceSteadyState_ == 0 ? -1 : 0;
+        }
 
-	public:
-		Switch2PosT(const char* msg, char pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(false), useMcpExpander_(false) // Modified: Initialize new flag
-		{
-			msg_ = msg;
-			pin_ = pin;
-			gpio_init(pin_);
-			gpio_pull_up(pin_);
-			gpio_set_dir(pin_, GPIO_IN);
-			debounceDelay_ = debounceDelay;
-			reverse_ = reverse;
-			lastState_ = gpio_get(pin_);
-			if (reverse_) lastState_ = !lastState_;
-		}
+        Switch2PosT(const char* msg, MCP23S17* expander, uint8_t expanderPin, bool reverse = false, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), expanderPin_(expanderPin), reverse_(reverse), debounceDelay_(debounceDelay),
+            mcpExpander_(expander), useMcpExpander_(true),
+            awExpander_(nullptr), useAwExpander_(false) {
+            debounceSteadyState_ = readInput();
+            if (reverse_) debounceSteadyState_ = !debounceSteadyState_;
+            lastState_ = debounceSteadyState_ == 0 ? -1 : 0;
+        }
+    };
 
-		Switch2PosT(const char* msg, AW9523B* expander, uint8_t pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(true), expander_(expander), expanderPin_(pin), useMcpExpander_(false) // Modified: Initialize new flag
-		{
-			msg_ = msg;
-			debounceDelay_ = debounceDelay;
-			reverse_ = reverse;
-			expander_->setPinInput(expanderPin_);
-			lastState_ = readInput();
-			if (reverse_) lastState_ = !lastState_;
-		}
+    template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
+    class SwitchWithCover2PosT : PollingInput, public ResettableInput {
+    private:
+        const char* msg_;
+        char pin_;
+        char coverPin_;
+        AW9523B* awExpander_;
+        MCP23S17* mcpExpander_;
+        bool useAwExpander_;
+        bool useMcpExpander_;
+        uint8_t expPin_;
+        uint8_t expCoverPin_;
 
-		// New: Constructor for MCP23S17
-		Switch2PosT(const char* msg, MCP23S17* expander, uint8_t pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(false), useMcpExpander_(true), mcpExpander_(expander), mcpExpanderPin_(pin)
-		{
-			msg_ = msg;
-			debounceDelay_ = debounceDelay;
-			reverse_ = reverse;
-			// MCP23S17 pins need to be configured as input with pull-up externally.
-			// The begin() method of MCP23S17 sets all pins as inputs by default.
-			// Pull-ups are also handled by MCP23S17::pinMode with INPUT_PULLUP.
-			lastState_ = readInput();
-			if (reverse_) lastState_ = !lastState_;
-		}
+        char debounceSteadyState_;
+        char lastState_;
+        char lastCoverState_;
+        unsigned long debounceDelay_;
+        unsigned long coverDelayMs_;
+        unsigned long lastDebounceTime = 0;
+        unsigned long lastCoverChangeTime_ = 0;
+        bool coverOpenHandled_ = false;
 
-		void SetControl(const char* msg) { msg_ = msg; }
-		void resetThisState() { this->resetState(); }
-	};
-	typedef Switch2PosT<> Switch2Pos;
-	typedef Switch2PosT<> MCP23S17Switch2Pos; // New typedef for clarity
+    protected: // This section is for internal helper methods
+        char readInput() {
+            if (useAwExpander_ && awExpander_) return awExpander_->readPin(expPin_);
+            if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(expPin_);
+            return gpio_get(pin_);
+        }
 
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, unsigned long coverDelayMs = 200>
-	class SwitchWithCover2PosT : PollingInput, public ResettableInput {
-	private:
-		const char* switchMsg_;
-		const char* coverMsg_;
-		char pin_;
-		bool useExpander_;
-		AW9523B* expander_;
-		uint8_t expanderPin_;
+        char readCoverInput() {
+            if (useAwExpander_ && awExpander_) return awExpander_->readPin(expCoverPin_);
+            if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(expCoverPin_);
+            return gpio_get(coverPin_);
+        }
 
-		bool useMcpExpander_; // New: Flag for MCP23S17
-		MCP23S17* mcpExpander_; // New: MCP23S17 expander
-		uint8_t mcpExpanderPin_; // New: MCP23S17 pin
+    public: // Changed access specifier for overridden methods
+        void resetThisState() override {
+            lastState_ = (lastState_ == 0) ? -1 : 0;
+            lastCoverState_ = (lastCoverState_ == 0) ? -1 : 0;
+        }
 
-		char lastState_;
-		char switchState_;
-		bool reverse_;
-		unsigned long debounceDelay_;
-		unsigned long lastDebounceTime = 0;
+        // Added override for PollingInput's resetState
+        void resetState() override { 
+            resetThisState(); // Call the specific reset logic
+        }
 
-		enum switchCoverStateEnum { stOFF_CLOSED = 0, stOFF_OPEN = 1, stON_OPEN = 2 };
-		switchCoverStateEnum switchCoverState_;
-		unsigned long lastSwitchStateTime;
+        void pollInput() override {
+            char state = readInput();
+            char coverState = readCoverInput();
+            unsigned long now = to_ms_since_boot(get_absolute_time());
 
-		char readInput() {
-			if (useExpander_ && expander_) return expander_->readPin(expanderPin_);
-			if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(mcpExpanderPin_); // New: Read from MCP23S17
-			return gpio_get(pin_);
-		}
+            if (coverState == 0) { // Cover is open (active low)
+                if (lastCoverState_ != coverState) {
+                    lastCoverChangeTime_ = now;
+                    coverOpenHandled_ = false;
+                }
+                lastCoverState_ = coverState;
 
-		void resetState() {
-			lastState_ = (lastState_ == 0) ? -1 : 0;
-			if (switchState_ && !reverse_) switchCoverState_ = stOFF_CLOSED;
-			else switchCoverState_ = stON_OPEN;
-			lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-		}
+                if ((now - lastCoverChangeTime_) >= coverDelayMs_ && !coverOpenHandled_) {
+                    if (state != debounceSteadyState_) {
+                        lastDebounceTime = now;
+                        debounceSteadyState_ = state;
+                    }
+                    if ((now - lastDebounceTime) >= debounceDelay_) {
+                        if (state != lastState_) {
+                            if (tryToSendDcsBiosMessage(msg_, state == 0 ? "0" : "1")) {
+                                lastState_ = state;
+                                coverOpenHandled_ = true;
+                            }
+                        }
+                    }
+                }
+            } else { // Cover is closed
+                lastCoverState_ = coverState;
+                debounceSteadyState_ = state;
+                lastState_ = state == 0 ? -1 : 0;
+                coverOpenHandled_ = false;
+            }
+        }
 
-	public: // Moved pollInput to public
-		void pollInput() {
-			char state = readInput();
-			if (reverse_) state = !state;
-			if (state != lastState_) lastDebounceTime = to_ms_since_boot(get_absolute_time());
-			if (state != switchState_ &&
-				(to_ms_since_boot(get_absolute_time()) - lastDebounceTime) > debounceDelay_) {
-				if (to_ms_since_boot(get_absolute_time()) - lastSwitchStateTime > coverDelayMs) {
-					if (state) {
-						if (switchCoverState_ == stON_OPEN && tryToSendDcsBiosMessage(switchMsg_, "0")) {
-							switchCoverState_ = stOFF_OPEN;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-						} else if (switchCoverState_ == stOFF_OPEN && tryToSendDcsBiosMessage(coverMsg_, "0")) {
-							switchCoverState_ = stOFF_CLOSED;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-							switchState_ = state;
-						}
-					} else {
-						if (switchCoverState_ == stOFF_CLOSED && tryToSendDcsBiosMessage(coverMsg_, "1")) {
-							switchCoverState_ = stOFF_OPEN;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-						} else if (switchCoverState_ == stOFF_OPEN && tryToSendDcsBiosMessage(switchMsg_, "1")) {
-							switchCoverState_ = stON_OPEN;
-							lastSwitchStateTime = to_ms_since_boot(get_absolute_time());
-							switchState_ = state;
-						}
-					}
-				}
-			}
-			lastState_ = state;
-		}
+    public:
+        SwitchWithCover2PosT(const char* msg, char pin, char coverPin, unsigned long debounceDelay = 50, unsigned long coverDelay = 200) :
+            PollingInput(pollIntervalMs), msg_(msg), pin_(pin), coverPin_(coverPin), debounceDelay_(debounceDelay), coverDelayMs_(coverDelay),
+            awExpander_(nullptr), mcpExpander_(nullptr), useAwExpander_(false), useMcpExpander_(false) {
+            gpio_init(pin_); gpio_pull_up(pin_); gpio_set_dir(pin_, GPIO_IN);
+            gpio_init(coverPin_); gpio_pull_up(coverPin_); gpio_set_dir(coverPin_, GPIO_IN);
+            debounceSteadyState_ = readInput();
+            lastState_ = debounceSteadyState_ == 0 ? -1 : 0;
+            lastCoverState_ = readCoverInput();
+        }
 
-	public:
-		SwitchWithCover2PosT(const char* switchMsg, const char* coverMsg, char pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(false), useMcpExpander_(false) // Modified: Initialize new flag
-		{
-			switchMsg_ = switchMsg;
-			coverMsg_ = coverMsg;
-			pin_ = pin;
-			gpio_init(pin_);
-			gpio_pull_up(pin_);
-			gpio_set_dir(pin_, GPIO_IN);
-			switchState_ = gpio_get(pin_);
-			lastState_ = switchState_;
-			reverse_ = reverse;
-			debounceDelay_ = debounceDelay;
-			resetState();
-		}
+        SwitchWithCover2PosT(const char* msg, AW9523B* expander, uint8_t expanderPin, uint8_t expanderCoverPin, unsigned long debounceDelay = 50, unsigned long coverDelay = 200) :
+            PollingInput(pollIntervalMs), msg_(msg), expPin_(expanderPin), expCoverPin_(expanderCoverPin), debounceDelay_(debounceDelay), coverDelayMs_(coverDelay),
+            awExpander_(expander), useAwExpander_(true),
+            mcpExpander_(nullptr), useMcpExpander_(false) {
+            debounceSteadyState_ = readInput();
+            lastState_ = debounceSteadyState_ == 0 ? -1 : 0;
+            lastCoverState_ = readCoverInput();
+        }
 
-		SwitchWithCover2PosT(const char* switchMsg, const char* coverMsg, AW9523B* expander, uint8_t pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(true), expander_(expander), expanderPin_(pin), useMcpExpander_(false) // Modified: Initialize new flag
-		{
-			switchMsg_ = switchMsg;
-			coverMsg_ = coverMsg;
-			reverse_ = reverse;
-			expander_->setPinInput(expanderPin_);
-			debounceDelay_ = debounceDelay;
-			switchState_ = readInput();
-			lastState_ = switchState_;
-			resetState();
-		}
+        SwitchWithCover2PosT(const char* msg, MCP23S17* expander, uint8_t expanderPin, uint8_t expanderCoverPin, unsigned long debounceDelay = 50, unsigned long coverDelay = 200) :
+            PollingInput(pollIntervalMs), msg_(msg), expPin_(expanderPin), expCoverPin_(expanderCoverPin), debounceDelay_(debounceDelay), coverDelayMs_(coverDelay),
+            mcpExpander_(expander), useMcpExpander_(true),
+            awExpander_(nullptr), useAwExpander_(false) {
+            debounceSteadyState_ = readInput();
+            lastState_ = debounceSteadyState_ == 0 ? -1 : 0;
+            lastCoverState_ = readCoverInput();
+        }
+    };
 
-		// New: Constructor for MCP23S17
-		SwitchWithCover2PosT(const char* switchMsg, const char* coverMsg, MCP23S17* expander, uint8_t pin, bool reverse = false, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), useExpander_(false), useMcpExpander_(true), mcpExpander_(expander), mcpExpanderPin_(pin)
-		{
-			switchMsg_ = switchMsg;
-			coverMsg_ = coverMsg;
-			reverse_ = reverse;
-			// MCP23S17 pins need to be configured as input with pull-up externally.
-			// The begin() method of MCP23S17 sets all pins as inputs by default.
-			// Pull-ups are also handled by MCP23S17::pinMode with INPUT_PULLUP.
-			debounceDelay_ = debounceDelay;
-			switchState_ = readInput();
-			lastState_ = switchState_;
-			resetState();
-		}
+    // Template for multi-position switch
+    // MODIFIED: Reordered template parameters so numPositions is first
+    template <int numPositions, unsigned long pollIntervalMs = POLL_EVERY_TIME>
+    class SwitchMultiPosT : PollingInput, public ResettableInput {
+    private:
+        const char* msg_;
+        const uint8_t* pins_; // Array of pins
+        AW9523B* awExpander_;
+        MCP23S17* mcpExpander_;
+        bool useAwExpander_;
+        bool useMcpExpander_;
+        unsigned long debounceDelay_;
+        unsigned long lastDebounceTime_ = 0;
+        char lastState_ = -1;
 
-		void resetThisState() { this->resetState(); }
-	};
-	typedef SwitchWithCover2PosT<> SwitchWithCover2Pos;
-	typedef SwitchWithCover2PosT<> MCP23S17SwitchWithCover2Pos; // New typedef for clarity
+    protected: // This section is for internal helper methods
+        char readInput(uint8_t index) {
+            if (useAwExpander_ && awExpander_) return awExpander_->readPin(pins_[index]);
+            if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(pins_[index]);
+            return gpio_get(pins_[index]);
+        }
 
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, int numPositions = 3> // Corrected POLL_EVERY_EVERY_TIME to POLL_EVERY_TIME
-	class SwitchMultiPosT : PollingInput, public ResettableInput {
-	private:
-		const char* msg_;
-		const uint8_t* pins_;
-		bool useExpander_;
-		AW9523B* expander_;
-		uint8_t expanderPins_[5];
+    public: // Changed access specifier for overridden methods
+        void resetThisState() override {
+            lastState_ = -1;
+        }
 
-		bool useMcpExpander_; // New: Flag for MCP23S17
-		MCP23S17* mcpExpander_; // New: MCP23S17 expander
-		uint8_t mcpExpanderPins_[5]; // New: MCP23S17 pins
+        // Added override for PollingInput's resetState
+        void resetState() override { 
+            resetThisState(); // Call the specific reset logic
+        }
 
-		char lastState_;
-		unsigned long debounceDelay_;
-		unsigned long lastDebounceTime_ = 0;
-	
-		char readInput(uint8_t index) {
-			if (useExpander_ && expander_)
-				return expander_->readPin(expanderPins_[index]);
-			if (useMcpExpander_ && mcpExpander_) // New: Read from MCP23S17
-				return mcpExpander_->digitalRead(mcpExpanderPins_[index]);
-			return gpio_get(pins_[index]);
-		}
-	
-		void resetState() {
-			lastState_ = -1;
-		}
-	
-	public: // Moved pollInput to public
-		void pollInput() {
-			unsigned long now = to_ms_since_boot(get_absolute_time());
-			for (int i = 0; i < numPositions; ++i) {
-				char state = readInput(i);
-				if (state == 0) {  // active-low
-					if (i != lastState_ && (now - lastDebounceTime_) >= debounceDelay_) {
-						char msgBuffer[3];
-						snprintf(msgBuffer, sizeof(msgBuffer), "%d", i);
-						if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
-							lastState_ = i;
-							lastDebounceTime_ = now;
-						}
-					}
-					break;
-				}
-			}
-		}
-	
-	public:
-		SwitchMultiPosT(const char* msg, const uint8_t* pins, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), msg_(msg), pins_(pins), useExpander_(false), useMcpExpander_(false), debounceDelay_(debounceDelay) { // Modified: Initialize new flag
-			for (int i = 0; i < numPositions; ++i) {
-				gpio_init(pins[i]);
-				gpio_pull_up(pins[i]);
-				gpio_set_dir(pins[i], GPIO_IN);
-			}
-			resetState();
-		}
-	
-		SwitchMultiPosT(const char* msg, AW9523B* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), msg_(msg), useExpander_(true), expander_(expander), useMcpExpander_(false), debounceDelay_(debounceDelay) { // Modified: Initialize new flag
-			for (int i = 0; i < numPositions; ++i) {
-				expanderPins_[i] = pins[i];
-				expander_->setPinInput(pins[i]);
-			}
-			resetState();
-		}
+        void pollInput() override {
+            unsigned long now = to_ms_since_boot(get_absolute_time());
+            for (int i = 0; i < numPositions; ++i) {
+                char state = readInput(i);
+                if (state == 0) {
+                    if (i != lastState_ && (now - lastDebounceTime_) >= debounceDelay_) {
+                        char msgBuffer[3];
+                        snprintf(msgBuffer, sizeof(msgBuffer), "%d", i);
+                        if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
+                            lastState_ = i;
+                            lastDebounceTime_ = now;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    
+    public:
+        // Constructor for direct Pico pins
+        SwitchMultiPosT(const char* msg, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            awExpander_(nullptr), mcpExpander_(nullptr), useAwExpander_(false), useMcpExpander_(false) {
+            for (int i = 0; i < numPositions; ++i) {
+                gpio_init(pins[i]);
+                gpio_pull_up(pins[i]);
+                gpio_set_dir(pins[i], GPIO_IN);
+            }
+            resetThisState();
+        }
+    
+        // Constructor for AW9523B expander
+        SwitchMultiPosT(const char* msg, AW9523B* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            awExpander_(expander), useAwExpander_(true),
+            mcpExpander_(nullptr), useMcpExpander_(false) {
+            resetThisState();
+        }
 
-		// New: Constructor for MCP23S17
-		SwitchMultiPosT(const char* msg, MCP23S17* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
-			PollingInput(pollIntervalMs), msg_(msg), useExpander_(false), useMcpExpander_(true), mcpExpander_(expander), debounceDelay_(debounceDelay) {
-			for (int i = 0; i < numPositions; ++i) {
-				mcpExpanderPins_[i] = pins[i];
-				// MCP23S17 pins need to be configured as input with pull-up externally.
-				// The begin() method of MCP23S17 sets all pins as inputs by default.
-				// Pull-ups are also handled by MCP23S17::pinMode with INPUT_PULLUP.
-			}
-			resetState();
-		}
-	
-		void SetControl(const char* msg) { msg_ = msg; }
-		void resetThisState() { resetState(); }
-	};
-	
+        // New constructor for MCP23S17 expander
+        SwitchMultiPosT(const char* msg, MCP23S17* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            mcpExpander_(expander), useMcpExpander_(true),
+            awExpander_(nullptr), useAwExpander_(false) {
+            resetThisState();
+        }
+    };
 
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 3> Switch3Pos;
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 4> Switch4Pos;
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 5> Switch5Pos;
+    // Aliases for common use cases (direct pins)
+    typedef Switch2PosT<> Switch2Pos;
+    typedef Switch2PosT<POLL_INTERVAL_100_MS> Switch2Pos100ms;
 
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 3> MCP23S17Switch3Pos; // New typedef for clarity
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 4> MCP23S17Switch4Pos; // New typedef for clarity
-	typedef SwitchMultiPosT<POLL_EVERY_TIME, 5> MCP23S17Switch5Pos; // New typedef for clarity
+    typedef SwitchWithCover2PosT<> SwitchWithCover2Pos;
+    typedef SwitchWithCover2PosT<POLL_INTERVAL_100_MS> SwitchWithCover2Pos100ms;
+
+    // MODIFIED: Updated aliases to reflect reordered template parameters
+    template <int numPositions> using SwitchMultiPos = SwitchMultiPosT<numPositions, POLL_EVERY_TIME>;
+    template <int numPositions> using SwitchMultiPos100ms = SwitchMultiPosT<numPositions, POLL_INTERVAL_100_MS>;
+
+    // Aliases for AW9523B expander use
+    typedef Switch2PosT<> AW9523BSwitch2Pos;
+    typedef SwitchWithCover2PosT<> AW9523BSwitchWithCover2Pos;
+    // MODIFIED: Updated aliases to reflect reordered template parameters
+    template <int numPositions> using AW9523BSwitchMultiPos = SwitchMultiPosT<numPositions, POLL_EVERY_TIME>;
+    template <int numPositions> using AW9523BSwitchMultiPos100ms = SwitchMultiPosT<numPositions, POLL_INTERVAL_100_MS>;
+
+
+    // Aliases for MCP23S17 expander use
+    typedef Switch2PosT<> MCP23S17Switch2Pos;
+    typedef SwitchWithCover2PosT<> MCP23S17SwitchWithCover2Pos;
+    // MODIFIED: Updated aliases to reflect reordered template parameters
+    template <int numPositions> using MCP23S17SwitchMultiPos = SwitchMultiPosT<numPositions, POLL_EVERY_TIME>;
+    template <int numPositions> using MCP23S17SwitchMultiPos100ms = SwitchMultiPosT<numPositions, POLL_INTERVAL_100_MS>;
+
 
 } // namespace DcsBios
 
-#endif
+#endif // __DCSBIOS_SWITCHES_H

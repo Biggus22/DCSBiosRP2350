@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "hardware/gpio.h"
 
 #include "DcsBios.h"
 #include "internal/FoxConfig.h"
@@ -13,103 +14,93 @@
 #include "internal/BoardMode.h"
 #include "internal/rs485.h"
 #include "internal/MCP23S17.h"
+#include "internal/Switches.h"
+#include "internal/Encoders.h"
 
 // SPI Configuration
 #define SPI_PORT spi0
 #define PIN_MISO 16
-#define PIN_CS   17
-#define PIN_SCK  18
+#define PIN_CS 17
+#define PIN_SCK 18
 #define PIN_MOSI 19
 
 // MCP23S17 Configuration
-#define MCP23S17_ADDRESS 0x20  // Hardware address (A2=A1=A0=0)
+#define MCP23S17_ADDRESS 0x20 // Hardware address (A2=A1=A0=0), VERIFY THIS!
 
-// MCP23S17 instance
+// Raspberry Pi Pico GPIO pin connected to MCP23S17 INT (INTA or INTB)
+#define MCP23S17_INT_PIN 20 // Example: Pico GPIO 20 for MCP23S17 interrupt
+
+// Global MCP23S17 object
 MCP23S17 ioExpander(SPI_PORT, PIN_CS, PIN_SCK, PIN_MOSI, PIN_MISO, MCP23S17_ADDRESS);
 
-// Custom switch class for MCP23S17
-class MCP23S17Switch2Pos {
-private:
-    const char* control_name;
-    MCP23S17* expander;
-    uint8_t pin;
-    bool last_state;
-    
-public:
-    MCP23S17Switch2Pos(const char* control, MCP23S17* exp, uint8_t pin_num) 
-        : control_name(control), expander(exp), pin(pin_num), last_state(false) {}
-    
-    void pollInput() {
-        bool current_state = expander->digitalRead(pin);
-        if (current_state != last_state) {
-            last_state = current_state;
-            DcsBios::sendDcsBiosMessage(control_name, current_state ? "1" : "0");
-        }
-    }
-};
+// Global pointers are used to reference inputs that are using interrupts
+// and are polled in the main loop. This allows for easy access to these inputs
 
-// Custom rotary encoder class for MCP23S17
-class MCP23S17RotaryEncoder {
-private:
-    const char* control_name;
-    const char* dec_action;
-    const char* inc_action;
-    MCP23S17* expander;
-    uint8_t pin_a;
-    uint8_t pin_b;
-    bool last_a;
-    bool last_b;
-    
-public:
-    MCP23S17RotaryEncoder(const char* control, const char* dec_step, const char* inc_step, MCP23S17* exp, uint8_t pin_a_num, uint8_t pin_b_num)
-        : control_name(control), dec_action(dec_step), inc_action(inc_step), expander(exp), pin_a(pin_a_num), pin_b(pin_b_num), last_a(false), last_b(false) {}
-    
-    void pollInput() {
-        bool current_a = expander->digitalRead(pin_a);
-        bool current_b = expander->digitalRead(pin_b);
-        
-        // Check for state change on pin A
-        if (current_a != last_a) {
-            // Pin A changed, check direction
-            if (current_a) {
-                // Rising edge on A
-                if (current_b) {
-                    // B is high, counter-clockwise
-                    DcsBios::sendDcsBiosMessage(control_name, dec_action);
-                } else {
-                    // B is low, clockwise
-                    DcsBios::sendDcsBiosMessage(control_name, inc_action);
-                }
-            }
-        }
-        
-        last_a = current_a;
-        last_b = current_b;
-    }
-};
+// Global flag to signal an MCP23S17 interrupt from the ISR to the main loop
+static volatile bool mcpInterruptOccurred = false;
 
-// Create switch on MCP23S17 GPA0 (pin 0)
-MCP23S17Switch2Pos pltPitotHeat("PLT_PITOT_HEAT", &ioExpander, 0);
-
-// Create rotary encoder on MCP23S17 GPA1 and GPA2 (pins 1 and 2)
-MCP23S17RotaryEncoder pltIntLightConsoleBrightness("PLT_INT_LIGHT_CONSOLE_BRIGHTNESS", "-3200", "+3200", &ioExpander, 1, 2);
-
-
+// Interrupt Service Routine (ISR) for MCP23S17
+void mcp23s17_interrupt_callback(uint gpio, uint32_t events)
+{
+    mcpInterruptOccurred = true;
+}
 
 int main()
 {
-    stdio_init_all();
-    sleep_ms(1000); // Allow USB to settle
+    stdio_init_all();                      // Initialize USB serial
+    DcsBios::initHeartbeat(HEARTBEAT_LED); // Initialize heartbeat LED
+    sleep_ms(2000);                        // 2-second delay
 
-    // Heartbeat init
-    DcsBios::initHeartbeat(HEARTBEAT_LED);
+    // Initialize MCP23S17
+    ioExpander.begin();
 
-    // Determine board mode for USB/RS485
-    uint8_t boardAddress = 0xF;
+    // Configure MCP23S17 Interrupts (ONLY for interrupt-driven pins)
+    // Configure interrupt output for the Pico's INT pin to catch *any* enabled MCP23S17 interrupt
+    ioExpander.configureInterruptOutput(false, true); // Active-driver, Active-high
+
+    // Configure MCP23S17 pins for the emulated concentric encoder (INTERRUPT-DRIVEN)
+    ioExpander.pinMode(0, _INPUT_PULLUP); // Button on GPA0
+    ioExpander.pinMode(1, _INPUT_PULLUP); // Encoder A on GPA1
+    ioExpander.pinMode(2, _INPUT_PULLUP); // Encoder B on GPA2
+    ioExpander.pinMode(3, _INPUT_PULLUP); // Unused pin on GPA3 (optional, can be used for other purposes)
+
+    // Enable interrupts on encoder pins
+    ioExpander.enableInterruptPin(0, true); // Button
+    ioExpander.enableInterruptPin(1, true); // Encoder A
+    ioExpander.enableInterruptPin(2, true); // Encoder B
+    ioExpander.enableInterruptPin(3, true); // pitot heat pin
+
+    // Set interrupt compare mode to compare against previous value for encoder pins
+    ioExpander.setInterruptControlMode(0, true); // Button
+    ioExpander.setInterruptControlMode(1, true); // Encoder A
+    ioExpander.setInterruptControlMode(2, true); // Encoder B
+
+    // Configure Pico's GPIO for MCP23S17 interrupt (still needed for the encoder)
+    gpio_init(MCP23S17_INT_PIN);
+    gpio_set_dir(MCP23S17_INT_PIN, GPIO_IN);
+    gpio_pull_up(MCP23S17_INT_PIN);
+
+    // Attach the interrupt callback (still needed for the encoder)
+    gpio_set_irq_enabled_with_callback(MCP23S17_INT_PIN, GPIO_IRQ_EDGE_FALL, true, &mcp23s17_interrupt_callback);
+
+    // Other DCS-BIOS components
+    DcsBios::Switch2Pos pltWpnMasterArm("PLT_WPN_MASTER_ARM", 3);       // Pico native pin
+    DcsBios::Switch2Pos pltPitotHeat("PLT_PITOT_HEAT", &ioExpander, 3); // MCP23S17 pin 4, no reverse, 1ms debounce
+  //emulated concentric encoder for PLT_HSI_COURSE_SET and PLT_BARO_PRESSURE_KNOB using MCP23S17 and pins 
+    DcsBios::EmulatedConcentricEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, DcsBios::ONE_STEP_PER_DETENT> pltNavModeConcentricEncoder("PLT_HSI_COURSE_SET", "-3200", "+3200", "PLT_BARO_PRESSURE_KNOB", "-200", "+200", &ioExpander, 0, 1, 2, false, 20); // PLT_NAV_MODE and PLT_BARO_PRESSURE_KNOB on MCP23S17 pins 1, 2, 3, actve low, 2ms debounce
+
+    // Global pointer to the Emulated Concentric Encoder.
+    // This pointer is crucial for accessing the encoder object within the interrupt handling logic.
+    DcsBios::EmulatedConcentricEncoderT<
+        POLL_EVERY_TIME,
+        DcsBios::TWO_STEPS_PER_DETENT,
+        DcsBios::ONE_STEP_PER_DETENT> *g_pltNavModeConcentricEncoder = &pltNavModeConcentricEncoder; // Global pointer for easy access
+
+    // Board configuration
+    uint8_t boardAddress = 0xF; // USB mode
     DcsBios::BoardMode board = DcsBios::determineBoardMode(boardAddress);
-    DcsBios::currentBoardMode = board;
-
     printf("Board address: 0x%X\n", boardAddress);
+
     switch (board.mode)
     {
     case DcsBios::BoardModeType::HOST:
@@ -119,40 +110,55 @@ int main()
         printf("SLAVE MODE\n");
         break;
     case DcsBios::BoardModeType::USB_ONLY:
-        printf("USB MODE\n");
+        printf("STANDALONE USB MODE\n");
         break;
     case DcsBios::BoardModeType::RS485_TERMINAL:
-        printf("RS485 TERMINAL\n");
+        printf("RS485 TERMINAL MODE\n");
         break;
     default:
         printf("INVALID ADDRESS\n");
         break;
     }
-
-    // Initialize MCP23S17
-    printf("Initializing MCP23S17...\n");
-    ioExpander.begin();
-    
-    // Configure GPA0 as input with pull-up for the switch
-    ioExpander.pinMode(0, INPUT_PULLUP);
-    // Configure GPA1 and GPA2 as inputs with pull-up for the rotary encoder
-    ioExpander.pinMode(1, INPUT_PULLUP);
-    ioExpander.pinMode(2, INPUT_PULLUP);
-    printf("MCP23S17 initialized, GPA0-2 configured as inputs with pull-up\n");
+    DcsBios::currentBoardMode = board;
 
     // Launch core1 for DCS-BIOS RS485/USB task
     multicore_launch_core1(DcsBios::core1_task);
+    printf("Core 1 task launched!\n");
 
-    // DCS-BIOS init
+    // DCS-BIOS setup
     DcsBios::setup();
-    printf("DCS-BIOS setup complete\n");
 
+    // The main loop now handles DCS-BIOS communication and polling tasks.
     while (true)
     {
-        DcsBios::loop();              // Main DCS-BIOS handler
-        pltPitotHeat.pollInput();    // Poll the MCP23S17 switch
-        pltIntLightConsoleBrightness.pollInput();   // Poll the MCP23S17 rotary encoder
-        DcsBios::updateHeartbeat();   // Blink status LED (if connected)
-        sleep_us(10);                 // Slight delay
+        DcsBios::loop();
+        pltWpnMasterArm.pollInput(); // Pico native pin, conventionally polled
+        pltPitotHeat.pollInput();    // MCP23S17 pin 4, conventionally polled
+        DcsBios::updateHeartbeat();  // Update heartbeat LED
+
+        // Check if an MCP23S17 interrupt occurred (ONLY for encoder pins)
+        if (mcpInterruptOccurred)
+        {
+            mcpInterruptOccurred = false; // Clear the flag
+
+            // Read the interrupt flags to know which pins caused the interrupt
+            uint16_t interruptFlags = ioExpander.getInterruptFlags();
+
+            // Reading INTCAP registers clears the interrupt on the MCP23S17
+            uint16_t capturedValues = ioExpander.getInterruptCapturedValues();
+
+            // Process the encoder based on its interrupt flags
+            // This block processes interrupts from GPA0 (button), GPA1, GPA2 (encoder)
+            if (interruptFlags & ((1 << 0) | (1 << 1) | (1 << 2)))
+            {
+                if (g_pltNavModeConcentricEncoder)
+                {
+                    g_pltNavModeConcentricEncoder->pollInput();
+                }
+            }
+            // No check for GPA4 (Pitot Heat) here, as it's conventionally polled
+        }
     }
+
+    return 0;
 }

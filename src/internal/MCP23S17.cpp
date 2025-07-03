@@ -38,7 +38,7 @@ void MCP23S17::pinMode(uint8_t pin, uint8_t mode) {
     uint8_t bit = pin % 8;
     uint8_t current_iodir = readRegister(reg_iodir);
     
-    if (mode == MCP23S17_PIN_OUTPUT) { 
+    if (mode == _OUTPUT) { 
         current_iodir &= ~(1 << bit); // Clear bit for output
     } else { // MCP23S17_PIN_INPUT or MCP23S17_PIN_INPUT_PULLUP
         current_iodir |= (1 << bit);  // Set bit for input
@@ -47,7 +47,7 @@ void MCP23S17::pinMode(uint8_t pin, uint8_t mode) {
     writeRegister(reg_iodir, current_iodir);
     
     // If INPUT_PULLUP, enable pullup
-    if (mode == MCP23S17_PIN_INPUT_PULLUP) { 
+    if (mode == _INPUT_PULLUP) { 
         pullUp(pin, true); 
     } else {
         pullUp(pin, false); 

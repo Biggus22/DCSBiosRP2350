@@ -15,8 +15,6 @@
 #define POLL_INTERVAL_100_MS 100
 #endif
 
-// tryToSendDcsBiosMessage is expected to be part of DCSBIOS.h or a globally visible header.
-
 namespace DcsBios {
 
     enum StepsPerDetent {
@@ -166,6 +164,234 @@ namespace DcsBios {
             resetThisState();
         }
     };
+
+    // NEW: Emulated Concentric Encoder Template Class
+    template <unsigned long pollIntervalMs = POLL_EVERY_TIME, StepsPerDetent normalStepsPerDetent = TWO_STEPS_PER_DETENT, StepsPerDetent altStepsPerDetent = ONE_STEP_PER_DETENT>
+    class EmulatedConcentricEncoderT : PollingInput, public ResettableInput {
+    private:
+        // Hardware configuration
+        char buttonPin_;
+        char encoderPinA_;
+        char encoderPinB_;
+        AW9523B* expander_ = nullptr;
+        uint8_t expButtonPin_;
+        uint8_t expEncoderPinA_;
+        uint8_t expEncoderPinB_;
+        bool useExpander_ = false;
+
+        MCP23S17* mcpExpander_ = nullptr;
+        uint8_t mcpExpButtonPin_;
+        uint8_t mcpExpEncoderPinA_;
+        uint8_t mcpExpEncoderPinB_;
+        bool useMcpExpander_ = false;
+
+        // DCS-BIOS messages for normal operation (button not pressed)
+        const char* normalMsg_;
+        const char* normalDecArg_;
+        const char* normalIncArg_;
+        
+        // DCS-BIOS messages for alternate operation (button pressed)
+        const char* altMsg_;
+        const char* altDecArg_;
+        const char* altIncArg_;
+        
+        // Encoder state variables
+        char lastEncoderState_;
+        volatile int encoderDelta_;
+        
+        // Encoder debounce variables
+        unsigned long encoderDebounceDelay_;
+        unsigned long lastEncoderChangeTime_;
+        char lastEncoderRawState_;
+        
+        // Button state variables
+        bool buttonPressed_;
+        unsigned long buttonDebounceDelay_;
+        unsigned long lastButtonChangeTime_;
+        bool lastButtonRawState_;
+
+        char readEncoderState() {
+            if (useExpander_ && expander_) {
+                return (char)(expander_->readPin(expEncoderPinA_) << 1 | expander_->readPin(expEncoderPinB_));
+            } else if (useMcpExpander_ && mcpExpander_) {
+                return (char)(mcpExpander_->digitalRead(mcpExpEncoderPinA_) << 1 | mcpExpander_->digitalRead(mcpExpEncoderPinB_));
+            } else {
+                return (char)(gpio_get(encoderPinA_) << 1 | gpio_get(encoderPinB_));
+            }
+        }
+        
+        bool readButtonState() {
+            if (useExpander_ && expander_) {
+                return !expander_->readPin(expButtonPin_); // Assuming active low with pull-up
+            } else if (useMcpExpander_ && mcpExpander_) {
+                return !mcpExpander_->digitalRead(mcpExpButtonPin_); // Assuming active low with pull-up
+            } else {
+                return !gpio_get(buttonPin_); // Assuming active low with pull-up
+            }
+        }
+
+    public:
+        void pollInput() override {
+            unsigned long now = to_ms_since_boot(get_absolute_time());
+            
+            // Handle button debouncing
+            bool currentButtonRawState = readButtonState();
+            if (currentButtonRawState != lastButtonRawState_) {
+                lastButtonChangeTime_ = now;
+                lastButtonRawState_ = currentButtonRawState;
+            }
+            
+            if ((now - lastButtonChangeTime_) >= buttonDebounceDelay_) {
+                if (currentButtonRawState != buttonPressed_) {
+                    buttonPressed_ = currentButtonRawState;
+                    // Reset encoder delta when button state changes to prevent unwanted commands
+                    encoderDelta_ = 0;
+                }
+            }
+            
+            // Handle encoder debouncing
+            char currentEncoderRawState = readEncoderState();
+            if (currentEncoderRawState != lastEncoderRawState_) {
+                lastEncoderChangeTime_ = now;
+                lastEncoderRawState_ = currentEncoderRawState;
+            }
+            
+            if ((now - lastEncoderChangeTime_) >= encoderDebounceDelay_) {
+                if (currentEncoderRawState != lastEncoderState_) {
+                    // Process encoder state machine
+                    if (lastEncoderState_ == 0b00) {
+                        if (currentEncoderRawState == 0b01) encoderDelta_++;
+                        else if (currentEncoderRawState == 0b10) encoderDelta_--;
+                    } else if (lastEncoderState_ == 0b01) {
+                        if (currentEncoderRawState == 0b11) encoderDelta_++;
+                        else if (currentEncoderRawState == 0b00) encoderDelta_--;
+                    } else if (lastEncoderState_ == 0b11) {
+                        if (currentEncoderRawState == 0b10) encoderDelta_++;
+                        else if (currentEncoderRawState == 0b01) encoderDelta_--;
+                    } else if (lastEncoderState_ == 0b10) {
+                        if (currentEncoderRawState == 0b00) encoderDelta_++;
+                        else if (currentEncoderRawState == 0b11) encoderDelta_--;
+                    }
+                    
+                    lastEncoderState_ = currentEncoderRawState;
+                }
+            }
+            
+            // Send DCS-BIOS messages based on button state
+            const char* msg;
+            const char* incArg;
+            const char* decArg;
+            int stepsPerDetent;
+            
+            if (buttonPressed_) { // Button held down - use alternate function
+                msg = altMsg_;
+                incArg = altIncArg_;
+                decArg = altDecArg_;
+                stepsPerDetent = altStepsPerDetent;
+            } else { // Normal operation
+                msg = normalMsg_;
+                incArg = normalIncArg_;
+                decArg = normalDecArg_;
+                stepsPerDetent = normalStepsPerDetent;
+            }
+            
+            // Process encoder delta and send messages
+            if (encoderDelta_ >= stepsPerDetent) {
+                if (tryToSendDcsBiosMessage(msg, incArg)) {
+                    encoderDelta_ -= stepsPerDetent;
+                }
+            }
+            if (encoderDelta_ <= -stepsPerDetent) {
+                if (tryToSendDcsBiosMessage(msg, decArg)) {
+                    encoderDelta_ += stepsPerDetent;
+                }
+            }
+        }
+
+        // Constructor for native Pico pins
+        EmulatedConcentricEncoderT(const char* normalMsg, const char* normalDecArg, const char* normalIncArg,
+                                  const char* altMsg, const char* altDecArg, const char* altIncArg,
+                                  char buttonPin, char encoderPinA, char encoderPinB,
+                                  unsigned long encoderDebounceDelay = 5, unsigned long buttonDebounceDelay = 50)
+            : PollingInput(pollIntervalMs), 
+              normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
+              altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
+              buttonPin_(buttonPin), encoderPinA_(encoderPinA), encoderPinB_(encoderPinB),
+              useExpander_(false), useMcpExpander_(false), encoderDelta_(0),
+              encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
+              buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
+        {
+            gpio_init(buttonPin_); gpio_pull_up(buttonPin_); gpio_set_dir(buttonPin_, GPIO_IN);
+            gpio_init(encoderPinA_); gpio_pull_up(encoderPinA_); gpio_set_dir(encoderPinA_, GPIO_IN);
+            gpio_init(encoderPinB_); gpio_pull_up(encoderPinB_); gpio_set_dir(encoderPinB_, GPIO_IN);
+            
+            lastEncoderRawState_ = readEncoderState();
+            lastEncoderState_ = lastEncoderRawState_;
+            lastButtonRawState_ = readButtonState();
+            buttonPressed_ = lastButtonRawState_;
+        }
+
+        // Constructor for AW9523B expander
+        EmulatedConcentricEncoderT(const char* normalMsg, const char* normalDecArg, const char* normalIncArg,
+                                  const char* altMsg, const char* altDecArg, const char* altIncArg,
+                                  AW9523B* expander, uint8_t buttonPin, uint8_t encoderPinA, uint8_t encoderPinB,
+                                  unsigned long encoderDebounceDelay = 5, unsigned long buttonDebounceDelay = 50)
+            : PollingInput(pollIntervalMs),
+              normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
+              altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
+              expander_(expander), expButtonPin_(buttonPin), expEncoderPinA_(encoderPinA), expEncoderPinB_(encoderPinB),
+              useExpander_(true), useMcpExpander_(false), encoderDelta_(0),
+              encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
+              buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
+        {
+            lastEncoderRawState_ = readEncoderState();
+            lastEncoderState_ = lastEncoderRawState_;
+            lastButtonRawState_ = readButtonState();
+            buttonPressed_ = lastButtonRawState_;
+        }
+
+        // Constructor for MCP23S17 expander
+        EmulatedConcentricEncoderT(const char* normalMsg, const char* normalDecArg, const char* normalIncArg,
+                                  const char* altMsg, const char* altDecArg, const char* altIncArg,
+                                  MCP23S17* expander, uint8_t buttonPin, uint8_t encoderPinA, uint8_t encoderPinB,
+                                  unsigned long encoderDebounceDelay = 5, unsigned long buttonDebounceDelay = 50)
+            : PollingInput(pollIntervalMs),
+              normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
+              altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
+              mcpExpander_(expander), mcpExpButtonPin_(buttonPin), mcpExpEncoderPinA_(encoderPinA), mcpExpEncoderPinB_(encoderPinB),
+              useExpander_(false), useMcpExpander_(true), encoderDelta_(0),
+              encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
+              buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
+        {
+            lastEncoderRawState_ = readEncoderState();
+            lastEncoderState_ = lastEncoderRawState_;
+            lastButtonRawState_ = readButtonState();
+            buttonPressed_ = lastButtonRawState_;
+        }
+
+        // *** Implement pure virtual functions from base classes ***
+        void resetState() override { // From PollingInput
+            resetThisState();
+        }
+
+        void resetThisState() override { // From ResettableInput
+            encoderDelta_ = 0;
+            lastEncoderRawState_ = readEncoderState();
+            lastEncoderState_ = lastEncoderRawState_;
+            lastButtonRawState_ = readButtonState();
+            buttonPressed_ = lastButtonRawState_;
+            unsigned long now = to_ms_since_boot(get_absolute_time());
+            lastEncoderChangeTime_ = now;
+            lastButtonChangeTime_ = now;
+        }
+        // *********************************************************
+
+        // Convenience reset method
+        void reset() {
+            resetThisState();
+        }
+    };
+    
     // ... (RotaryAcceleratedEncoderT and aliases would follow here, modified similarly if needed)
     
     // Aliases for MCP23S17 expander use
@@ -173,6 +399,12 @@ namespace DcsBios {
     typedef RotaryEncoderT<POLL_EVERY_TIME, TWO_STEPS_PER_DETENT> MCP23S17RotaryEncoderTwoSteps;
     typedef RotaryEncoderT<POLL_EVERY_TIME, FOUR_STEPS_PER_DETENT> MCP23S17RotaryEncoderFourSteps;
     typedef RotaryEncoderT<POLL_EVERY_TIME, EIGHT_STEPS_PER_DETENT> MCP23S17RotaryEncoderEightSteps;
+
+    // Aliases for Emulated Concentric Encoder
+    typedef EmulatedConcentricEncoderT<POLL_EVERY_TIME, TWO_STEPS_PER_DETENT, ONE_STEP_PER_DETENT> EmulatedConcentricEncoder;
+    typedef EmulatedConcentricEncoderT<POLL_EVERY_TIME, ONE_STEP_PER_DETENT, ONE_STEP_PER_DETENT> EmulatedConcentricEncoderOneStep;
+    typedef EmulatedConcentricEncoderT<POLL_EVERY_TIME, TWO_STEPS_PER_DETENT, TWO_STEPS_PER_DETENT> EmulatedConcentricEncoderTwoSteps;
+    typedef EmulatedConcentricEncoderT<POLL_EVERY_TIME, FOUR_STEPS_PER_DETENT, ONE_STEP_PER_DETENT> EmulatedConcentricEncoderFourStepsNormal;
 
 } // namespace DcsBios
 

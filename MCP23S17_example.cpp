@@ -84,7 +84,7 @@ int main()
     gpio_set_irq_enabled_with_callback(MCP23S17_INT_PIN, GPIO_IRQ_EDGE_FALL, true, &mcp23s17_interrupt_callback);
 
     // Other DCS-BIOS components
-    DcsBios::Switch2Pos pltWpnMasterArm("PLT_WPN_MASTER_ARM", 3);       // Pico native pin
+    DcsBios::Switch2Pos pltWpnMasterArm("PLT_WPN_MASTER_ARM", 1);       // Pico native pin
     DcsBios::Switch2Pos pltPitotHeat("PLT_PITOT_HEAT", &ioExpander, 3); // MCP23S17 pin 4, no reverse, 1ms debounce
   //emulated concentric encoder for PLT_HSI_COURSE_SET and PLT_BARO_PRESSURE_KNOB using MCP23S17 and pins 
     DcsBios::EmulatedConcentricEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, DcsBios::ONE_STEP_PER_DETENT> pltNavModeConcentricEncoder("PLT_HSI_COURSE_SET", "-3200", "+3200", "PLT_BARO_PRESSURE_KNOB", "-200", "+200", &ioExpander, 0, 1, 2, false, 20); // PLT_NAV_MODE and PLT_BARO_PRESSURE_KNOB on MCP23S17 pins 1, 2, 3, actve low, 2ms debounce

@@ -39,7 +39,9 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 RS485_test_slave.cpp)
 # add_executable(DCSBiosRP2350 Testing_sketch.cpp)
 # add_executable(DCSBiosRP2350 ADS1115_example.cpp)
- add_executable(DCSBiosRP2350 MCP23S17_example.cpp)
+ add_executable(DCSBiosRP2350 PCF8575_example.cpp)
+# add_executable(DCSBiosRP2350 RP2040_Zero_onboard_RGB_LED_example.cpp)
+# add_executable(DCSBiosRP2350 MCP23S17_example.cpp)
 # add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
 # add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
@@ -91,6 +93,7 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/rs485.cpp
     src/internal/core1_tasks.cpp
     src/internal/Mcp23s17.cpp
+    src/internal/PCF8575.cpp
 
     )
 pico_add_extra_outputs(DCSBiosRP2350)

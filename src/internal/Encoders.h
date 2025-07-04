@@ -1,10 +1,11 @@
-// Modified header version with AW9523B support for RotaryEncoderT and RotaryAcceleratedEncoderT only
+// Modified header version with AW9523B, MCP23S17, and PCF8575 support for RotaryEncoderT and RotaryAcceleratedEncoderT only
 #ifndef __DCSBIOS_ENCODERS_H
 #define __DCSBIOS_ENCODERS_H
 
 #include "pico/stdlib.h"
 #include "aw9523b.h"
 #include "internal/MCP23S17.h" // Include MCP23S17 header
+#include "pcf8575.h" // Include PCF8575 header
 
 // Define polling interval constants if they are not already defined
 #ifndef POLL_EVERY_TIME
@@ -37,10 +38,15 @@ namespace DcsBios {
         uint8_t expPinB_;
         bool useExpander_ = false;
 
-        MCP23S17* mcpExpander_ = nullptr; // New: MCP23S17 expander pointer
+        MCP23S17* mcpExpander_ = nullptr; // MCP23S17 expander pointer
         uint8_t mcpExpPinA_;
         uint8_t mcpExpPinB_;
-        bool useMcpExpander_ = false; // New: Flag for MCP23S17 expander
+        bool useMcpExpander_ = false; // Flag for MCP23S17 expander
+
+        PCF8575* pcfExpander_ = nullptr; // PCF8575 expander pointer
+        uint8_t pcfExpPinA_;
+        uint8_t pcfExpPinB_;
+        bool usePcfExpander_ = false; // Flag for PCF8575 expander
 
         char lastState_; // The last *debounced* state
         volatile int delta_;
@@ -56,6 +62,8 @@ namespace DcsBios {
                 return (char)(expander_->readPin(expPinA_) << 1 | expander_->readPin(expPinB_));
             } else if (useMcpExpander_ && mcpExpander_) {
                 return (char)(mcpExpander_->digitalRead(mcpExpPinA_) << 1 | mcpExpander_->digitalRead(mcpExpPinB_));
+            } else if (usePcfExpander_ && pcfExpander_) {
+                return (char)(pcfExpander_->digitalRead(pcfExpPinA_) << 1 | pcfExpander_->digitalRead(pcfExpPinB_));
             } else {
                 return (char)(gpio_get(pinA_) << 1 | gpio_get(pinB_));
             }
@@ -109,7 +117,7 @@ namespace DcsBios {
         // Added debounceDelay parameter with a default value
         RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, char pinA, char pinB, unsigned long debounceDelay = 5)
             : PollingInput(pollIntervalMs), msg_(msg), decArg_(decArg), incArg_(incArg), pinA_(pinA), pinB_(pinB),
-              useExpander_(false), useMcpExpander_(false), delta_(0),
+              useExpander_(false), useMcpExpander_(false), usePcfExpander_(false), delta_(0),
               debounceDelay_(debounceDelay), lastChangeTime_(0) // Initialize new members
         {
             gpio_init(pinA_); gpio_pull_up(pinA_); gpio_set_dir(pinA_, GPIO_IN);
@@ -122,7 +130,7 @@ namespace DcsBios {
         // Added debounceDelay parameter with a default value
         RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, AW9523B* expander, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 5)
             : PollingInput(pollIntervalMs), expander_(expander), expPinA_(pinA), expPinB_(pinB), useExpander_(true),
-              mcpExpander_(nullptr), useMcpExpander_(false), delta_(0),
+              mcpExpander_(nullptr), useMcpExpander_(false), pcfExpander_(nullptr), usePcfExpander_(false), delta_(0),
               debounceDelay_(debounceDelay), lastChangeTime_(0) // Initialize new members
         {
             msg_ = msg;
@@ -132,11 +140,27 @@ namespace DcsBios {
             lastState_ = lastRawState_;  // Initialize debounced state
         }
 
-        // New constructor for MCP23S17 expander
+        // Constructor for MCP23S17 expander
         // Added debounceDelay parameter with a default value
         RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, MCP23S17* expander, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 5)
             : PollingInput(pollIntervalMs), useExpander_(false), // Not using AW9523B expander
-              mcpExpander_(expander), mcpExpPinA_(pinA), mcpExpPinB_(pinB), useMcpExpander_(true), delta_(0),
+              mcpExpander_(expander), mcpExpPinA_(pinA), mcpExpPinB_(pinB), useMcpExpander_(true),
+              pcfExpander_(nullptr), usePcfExpander_(false), delta_(0),
+              debounceDelay_(debounceDelay), lastChangeTime_(0) // Initialize new members
+        {
+            msg_ = msg;
+            decArg_ = decArg;
+            incArg_ = incArg;
+            lastRawState_ = readState(); // Initialize last raw state
+            lastState_ = lastRawState_;  // Initialize debounced state
+        }
+
+        // Constructor for PCF8575 expander
+        // Added debounceDelay parameter with a default value
+        RotaryEncoderT(const char* msg, const char* decArg, const char* incArg, PCF8575* expander, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 5)
+            : PollingInput(pollIntervalMs), useExpander_(false), // Not using AW9523B expander
+              mcpExpander_(nullptr), useMcpExpander_(false),
+              pcfExpander_(expander), pcfExpPinA_(pinA), pcfExpPinB_(pinB), usePcfExpander_(true), delta_(0),
               debounceDelay_(debounceDelay), lastChangeTime_(0) // Initialize new members
         {
             msg_ = msg;
@@ -185,6 +209,12 @@ namespace DcsBios {
         uint8_t mcpExpEncoderPinB_;
         bool useMcpExpander_ = false;
 
+        PCF8575* pcfExpander_ = nullptr;
+        uint8_t pcfExpButtonPin_;
+        uint8_t pcfExpEncoderPinA_;
+        uint8_t pcfExpEncoderPinB_;
+        bool usePcfExpander_ = false;
+
         // DCS-BIOS messages for normal operation (button not pressed)
         const char* normalMsg_;
         const char* normalDecArg_;
@@ -215,6 +245,8 @@ namespace DcsBios {
                 return (char)(expander_->readPin(expEncoderPinA_) << 1 | expander_->readPin(expEncoderPinB_));
             } else if (useMcpExpander_ && mcpExpander_) {
                 return (char)(mcpExpander_->digitalRead(mcpExpEncoderPinA_) << 1 | mcpExpander_->digitalRead(mcpExpEncoderPinB_));
+            } else if (usePcfExpander_ && pcfExpander_) {
+                return (char)(pcfExpander_->digitalRead(pcfExpEncoderPinA_) << 1 | pcfExpander_->digitalRead(pcfExpEncoderPinB_));
             } else {
                 return (char)(gpio_get(encoderPinA_) << 1 | gpio_get(encoderPinB_));
             }
@@ -225,6 +257,8 @@ namespace DcsBios {
                 return !expander_->readPin(expButtonPin_); // Assuming active low with pull-up
             } else if (useMcpExpander_ && mcpExpander_) {
                 return !mcpExpander_->digitalRead(mcpExpButtonPin_); // Assuming active low with pull-up
+            } else if (usePcfExpander_ && pcfExpander_) {
+                return !pcfExpander_->digitalRead(pcfExpButtonPin_); // Assuming active low with pull-up
             } else {
                 return !gpio_get(buttonPin_); // Assuming active low with pull-up
             }
@@ -317,7 +351,7 @@ namespace DcsBios {
               normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
               altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
               buttonPin_(buttonPin), encoderPinA_(encoderPinA), encoderPinB_(encoderPinB),
-              useExpander_(false), useMcpExpander_(false), encoderDelta_(0),
+              useExpander_(false), useMcpExpander_(false), usePcfExpander_(false), encoderDelta_(0),
               encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
               buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
         {
@@ -340,7 +374,7 @@ namespace DcsBios {
               normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
               altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
               expander_(expander), expButtonPin_(buttonPin), expEncoderPinA_(encoderPinA), expEncoderPinB_(encoderPinB),
-              useExpander_(true), useMcpExpander_(false), encoderDelta_(0),
+              useExpander_(true), useMcpExpander_(false), usePcfExpander_(false), encoderDelta_(0),
               encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
               buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
         {
@@ -359,7 +393,26 @@ namespace DcsBios {
               normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
               altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
               mcpExpander_(expander), mcpExpButtonPin_(buttonPin), mcpExpEncoderPinA_(encoderPinA), mcpExpEncoderPinB_(encoderPinB),
-              useExpander_(false), useMcpExpander_(true), encoderDelta_(0),
+              useExpander_(false), useMcpExpander_(true), usePcfExpander_(false), encoderDelta_(0),
+              encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
+              buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
+        {
+            lastEncoderRawState_ = readEncoderState();
+            lastEncoderState_ = lastEncoderRawState_;
+            lastButtonRawState_ = readButtonState();
+            buttonPressed_ = lastButtonRawState_;
+        }
+
+        // Constructor for PCF8575 expander
+        EmulatedConcentricEncoderT(const char* normalMsg, const char* normalDecArg, const char* normalIncArg,
+                                  const char* altMsg, const char* altDecArg, const char* altIncArg,
+                                  PCF8575* expander, uint8_t buttonPin, uint8_t encoderPinA, uint8_t encoderPinB,
+                                  unsigned long encoderDebounceDelay = 5, unsigned long buttonDebounceDelay = 50)
+            : PollingInput(pollIntervalMs),
+              normalMsg_(normalMsg), normalDecArg_(normalDecArg), normalIncArg_(normalIncArg),
+              altMsg_(altMsg), altDecArg_(altDecArg), altIncArg_(altIncArg),
+              pcfExpander_(expander), pcfExpButtonPin_(buttonPin), pcfExpEncoderPinA_(encoderPinA), pcfExpEncoderPinB_(encoderPinB),
+              useExpander_(false), useMcpExpander_(false), usePcfExpander_(true), encoderDelta_(0),
               encoderDebounceDelay_(encoderDebounceDelay), lastEncoderChangeTime_(0),
               buttonPressed_(false), buttonDebounceDelay_(buttonDebounceDelay), lastButtonChangeTime_(0)
         {
@@ -399,6 +452,12 @@ namespace DcsBios {
     typedef RotaryEncoderT<POLL_EVERY_TIME, TWO_STEPS_PER_DETENT> MCP23S17RotaryEncoderTwoSteps;
     typedef RotaryEncoderT<POLL_EVERY_TIME, FOUR_STEPS_PER_DETENT> MCP23S17RotaryEncoderFourSteps;
     typedef RotaryEncoderT<POLL_EVERY_TIME, EIGHT_STEPS_PER_DETENT> MCP23S17RotaryEncoderEightSteps;
+
+    // Aliases for PCF8575 expander use
+    typedef RotaryEncoderT<POLL_EVERY_TIME, ONE_STEP_PER_DETENT> PCF8575RotaryEncoderOneStep;
+    typedef RotaryEncoderT<POLL_EVERY_TIME, TWO_STEPS_PER_DETENT> PCF8575RotaryEncoderTwoSteps;
+    typedef RotaryEncoderT<POLL_EVERY_TIME, FOUR_STEPS_PER_DETENT> PCF8575RotaryEncoderFourSteps;
+    typedef RotaryEncoderT<POLL_EVERY_TIME, EIGHT_STEPS_PER_DETENT> PCF8575RotaryEncoderEightSteps;
 
     // Aliases for Emulated Concentric Encoder
     typedef EmulatedConcentricEncoderT<POLL_EVERY_TIME, TWO_STEPS_PER_DETENT, ONE_STEP_PER_DETENT> EmulatedConcentricEncoder;

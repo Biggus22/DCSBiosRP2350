@@ -48,15 +48,13 @@ int main() {
     multicore_launch_core1(DcsBios::core1_task);  
     printf("Core 1 task launched!\n");
 
-    DcsBios::LED masterModeAaLt(FA_18C_hornet_MASTER_MODE_AA_LT_AM, 1);
-    DcsBios::LED masterModeAgLt(FA_18C_hornet_MASTER_MODE_AG_LT_AM, 2);
-    DcsBios::Switch2Pos masterArmSw("MASTER_ARM_SW", 3);
-    DcsBios::Switch2Pos emerJettBtn("EMER_JETT_BTN", 6);
+    DcsBios::Switch2Pos masterArmSw("MASTER_ARM_SW", 15);
 
     DcsBios::setup();  // Initialize DCS-BIOS framework
     printf("DCS-BIOS setup complete!\n");
     while (true) {
         DcsBios::loop(); // Handle input, output, and LED updates
+        masterArmSw.pollInput(); // Poll the master arm switch
         DcsBios::updateHeartbeat(); // Update heartbeat LED
         sleep_us(10);
     }

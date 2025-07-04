@@ -1,4 +1,3 @@
-// #define PICO_BOARD
 #define FOX1_BOARD
 
 #include <stdio.h>
@@ -11,6 +10,8 @@
 #include "internal/DeviceAddress.h"
 #include "internal/BoardMode.h"
 #include "internal/rs485.h"
+#include "internal/aw9523b.h"
+#include "internal/ws2812.h"  // Include the WS2812 header
 
 
 #define FADE_DELAY_MS 1  // Delay between steps
@@ -119,7 +120,7 @@ int main() {
     const uint8_t selJettKnobPins[5] = {B1, B2, B3, B4, B5};
     DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 5> selJettKnob("SEL_JETT_KNOB", &aw_io1, selJettKnobPins);
 
-    DcsBios::Switch2Pos emerJettBtn("EMER_JETT_BTN", 6);
+    DcsBios::Switch2Pos emerJettBtn("EMER_JETT_BTN", 15);
 
     DcsBios::setup();  // Initialize DCS-BIOS framework
     printf("DCS-BIOS setup complete!\n");

@@ -15,7 +15,7 @@
 
 // ==== FOX1 Pinout ====
 #if defined(FOX1_BOARD) 
-    #define HEARTBEAT_LED 33
+    #define HEARTBEAT_LED 25
     #define ERROR_LED 32
     #define BOARD_LED 31
 

@@ -7,8 +7,6 @@ PCF8575::PCF8575(i2c_inst_t* i2c_port, uint8_t address)
 }
 
 bool PCF8575::writeRegister(uint16_t value) {
-    if (!initialized_) return false;
-    
     uint8_t data[2];
     data[0] = value & 0xFF;         // Low byte
     data[1] = (value >> 8) & 0xFF;  // High byte
@@ -18,7 +16,9 @@ bool PCF8575::writeRegister(uint16_t value) {
 }
 
 bool PCF8575::readRegister(uint16_t* value) {
-    if (!initialized_ || !value) return false;
+    if (!initialized_ || !value) {
+        return false;
+    }
     
     uint8_t data[2];
     int result = i2c_read_blocking(i2c_port_, i2c_address_, data, 2, false);
@@ -31,18 +31,18 @@ bool PCF8575::readRegister(uint16_t* value) {
 }
 
 bool PCF8575::begin() {
-    if (initialized_) return true;
+    if (initialized_) {
+        return true;
+    }
     
-    // Test communication
     if (!isConnected()) {
         return false;
     }
     
-    // Initialize all pins as inputs with pull-ups
-    pin_states_ = 0xFFFF;
-    pin_directions_ = 0xFFFF;
-    
-    bool success = writeRegister(pin_states_);
+    pin_states_ = 0xFFFF; 
+    pin_directions_ = 0xFFFF; 
+
+    bool success = writeRegister(pin_states_); 
     if (success) {
         initialized_ = true;
     }
@@ -51,62 +51,59 @@ bool PCF8575::begin() {
 }
 
 bool PCF8575::isConnected() {
-    uint8_t dummy = 0;
-    int result = i2c_write_blocking(i2c_port_, i2c_address_, &dummy, 0, false);
-    return result >= 0;
+    uint8_t buffer[2];
+    int result = i2c_read_blocking(i2c_port_, i2c_address_, buffer, 2, false);
+    return result == 2;
 }
 
+// Corrected: Return type changed to bool, mode parameter changed to uint8_t
 bool PCF8575::pinMode(uint8_t pin, uint8_t mode) {
-    if (!initialized_ || pin > 15) return false;
+    if (!initialized_ || pin > 15) return false; // Return false on error
     
     uint16_t mask = 1 << pin;
     
-    if (mode == GPIO_IN) {
-        pin_directions_ |= mask;   // Set bit for input
-        pin_states_ |= mask;       // Set high for pull-up
-    } else {
-        pin_directions_ &= ~mask;  // Clear bit for output
-        // Keep current output state
+    if (mode == GPIO_IN) { // Assuming GPIO_IN is defined and compatible with uint8_t
+        pin_directions_ |= mask; // Set as input
+        pin_states_ |= mask;     // Set high for input (quasi-bidirectional)
+    } else { // GPIO_OUT
+        pin_directions_ &= ~mask; // Set as output
+        // Pin state retains its current value
     }
-    
-    return writeRegister(pin_states_);
+    return writeRegister(pin_states_); // Return result of writeRegister
 }
 
+// Corrected: Return type changed to bool, value parameter changed to uint8_t
 bool PCF8575::digitalWrite(uint8_t pin, uint8_t value) {
-    if (!initialized_ || pin > 15) return false;
+    if (!initialized_ || pin > 15) return false; // Return false on error
     
-    // Check if pin is configured as output
     uint16_t mask = 1 << pin;
-    if (pin_directions_ & mask) {
-        // Pin is configured as input, cannot write
-        return false;
-    }
     
-    if (value) {
-        pin_states_ |= mask;
-    } else {
-        pin_states_ &= ~mask;
+    // Only write if pin is configured as output
+    if (!(pin_directions_ & mask)) {
+        if (value) { // Treat any non-zero uint8_t as true
+            pin_states_ |= mask;
+        } else {
+            pin_states_ &= ~mask;
+        }
+        return writeRegister(pin_states_); // Return result of writeRegister
     }
-    
-    return writeRegister(pin_states_);
+    return false; // Pin is not configured as output, cannot write
 }
 
 int PCF8575::digitalRead(uint8_t pin) {
     if (!initialized_ || pin > 15) return -1;
     
     uint16_t current_state;
-    if (!readRegister(&current_state)) {
-        return -1;
+    if (readRegister(&current_state)) {
+        return (current_state & (1 << pin)) ? 1 : 0;
     }
-    
-    return (current_state >> pin) & 1;
+    return -1;
 }
 
 bool PCF8575::writePort(uint16_t value) {
     if (!initialized_) return false;
     
-    // Only update output pins, preserve input pins
-    uint16_t output_mask = ~pin_directions_;  // Invert to get output pins
+    uint16_t output_mask = ~pin_directions_; // Output pins
     uint16_t input_mask = pin_directions_;    // Input pins
     
     pin_states_ = (value & output_mask) | (pin_states_ & input_mask);
@@ -155,20 +152,13 @@ bool PCF8575::pullUp(uint8_t pin, bool enable) {
     return writeRegister(pin_states_);
 }
 
-uint8_t PCF8575::getAddress() const {
-    return i2c_address_;
-}
-
 i2c_inst_t* PCF8575::getI2CPort() const {
     return i2c_port_;
 }
 
 bool PCF8575::reset() {
     if (!initialized_) return false;
-    
-    // Reset all pins to input with pull-ups
-    pin_directions_ = 0xFFFF;
     pin_states_ = 0xFFFF;
-    
+    pin_directions_ = 0xFFFF;
     return writeRegister(pin_states_);
 }

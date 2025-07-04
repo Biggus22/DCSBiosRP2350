@@ -161,8 +161,19 @@
     #define ENCODER3_SW 17
 
 #elif defined(PICO_BOARD)
-    #define HEARTBEAT_LED 29
-    #define NEO_DRIVE_PIN 27
+    #define HEARTBEAT_LED 25
+    #define NEO_DRIVE_PIN 16
+
+    #define I2C0_SDA 4
+    #define I2C0_SCL 5
+
+    #define I2C1_SDA 6
+    #define I2C1_SCL 7
+
+    #define UART0_TX 0
+    #define UART0_RX 1
+    #define RS485_EN 2
+
 
 #endif
 

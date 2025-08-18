@@ -8,8 +8,12 @@
 #define USB_MODE 0xF
 #define WATCHDOG_TIMEOUT 5000
 
+//#define SLAVE_MODE_MIN 0x10 // originally 0x1
+//#define SLAVE_MODE_MAX 0x0FF // originally 0xD
+
+
 // ==== Validate board type ====
-#if !defined(FOX1_BOARD) && !defined(FOX2_BOARD) && !defined(PICO_BOARD)
+#if !defined(FOX1_BOARD) && !defined(FOX2_BOARD) && !defined(PICO_BOARD) && !defined(RP2040_BOARD)
     #error "You must define FOX1_BOARD or FOX2_BOARD before including Fox.h"
 #endif
 
@@ -161,7 +165,7 @@
     #define ENCODER3_SW 17
 
 #elif defined(PICO_BOARD)
-    #define HEARTBEAT_LED 25
+    #define HEARTBEAT_LED 13
     #define NEO_DRIVE_PIN 16
 
     #define I2C0_SDA 4
@@ -174,6 +178,19 @@
     #define UART0_RX 1
     #define RS485_EN 2
 
+#elif defined(RP2040_BOARD)
+    #define HEARTBEAT_LED 21
+    #define NEO_DRIVE_PIN 16
+
+    #define I2C0_SDA 4
+    #define I2C0_SCL 5
+
+    #define I2C1_SDA 6
+    #define I2C1_SCL 7
+
+    #define UART0_TX 0
+    #define UART0_RX 1
+    #define RS485_EN 2
 
 #endif
 

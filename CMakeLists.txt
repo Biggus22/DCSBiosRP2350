@@ -16,7 +16,7 @@ else()
     set(USERHOME $ENV{HOME})
 endif()
 set(sdkVersion 2.1.1)
-set(toolchainVersion RISCV_RPI_2_0_0_5)
+set(toolchainVersion 14_2_Rel1)
 set(picotoolVersion 2.1.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
@@ -24,6 +24,7 @@ if (EXISTS ${picoVscode})
 endif()
 # ====================================================================================
 set(PICO_BOARD pico2 CACHE STRING "Board type")
+#set(PICO_BOARD waveshare_rp2040_zero CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -35,14 +36,23 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-# add_executable(DCSBiosRP2350 RS485_test_master.cpp)
-# add_executable(DCSBiosRP2350 RS485_test_slave.cpp)
-# add_executable(DCSBiosRP2350 Testing_sketch.cpp)
-# add_executable(DCSBiosRP2350 ADS1115_example.cpp)
- add_executable(DCSBiosRP2350 PCF8575_example.cpp)
-# add_executable(DCSBiosRP2350 RP2040_Zero_onboard_RGB_LED_example.cpp)
-# add_executable(DCSBiosRP2350 MCP23S17_example.cpp)
-# add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/RP2040_Zero_ICS_LED_test.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ACFS_RP2040_Pico_testing_light.cpp)
+# add_executable(DCSBiosRP2350 test_programs/Stepper_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/RS485_slave_hardcoded_addr.cpp)
+
+add_executable(DCSBiosRP2350 test_programs/RS485_test_master.cpp)
+# add_executable(DCSBiosRP2350 test_programs/RS485_test_slave.cpp)
+# add_executable(DCSBiosRP2350 test_programs/LED_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/MCP23S17_testing_sketch.cpp)
+# add_executable(DCSBiosRP2350 test_programs/ADS1115_example.cpp)
+# add_executable(DCSBiosRP2350 test_programs/PCF8575_example.cpp)
+# add_executable(DCSBiosRP2350 test_programs/RP2040_Zero_onboard_RGB_LED_example.cpp)
+# add_executable(DCSBiosRP2350 test_programs/MCP23S17_example.cpp)
+# add_executable(DCSBiosRP2350 test_programs/DCSBiosRP2350.cpp)
+
 # add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
 
@@ -72,6 +82,7 @@ target_link_libraries(DCSBiosRP2350
         hardware_pwm
         hardware_watchdog
         hardware_spi
+        hardware_uart
         )
 
 # Add the standard include files to the build
@@ -94,7 +105,7 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/core1_tasks.cpp
     src/internal/Mcp23s17.cpp
     src/internal/PCF8575.cpp
-
+    #src/internal/rs485_arduino_protocol.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 

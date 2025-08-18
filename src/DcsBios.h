@@ -123,7 +123,8 @@ namespace DcsBios {
 
 
 #include "internal/Buttons.h"
-#include "internal/Switches.h"
+//#include "internal/Switches.h"
+#include "internal/SwitchesV2.h"
 #include "internal/SyncingSwitches.h" 
 #include "internal/Encoders.h"
 #include "internal/Potentiometers.h"

@@ -258,6 +258,7 @@ namespace DcsBios {
         unsigned long debounceDelay_;
         unsigned long lastDebounceTime_ = 0;
         char lastState_ = -1;
+        char currentSteadyState_ = -1;  // Added to track debounced state
 
     protected: // This section is for internal helper methods
         char readInput(uint8_t index) {
@@ -267,9 +268,37 @@ namespace DcsBios {
             return gpio_get(pins_[index]);
         }
 
+        // NEW: Function to determine current position based on pin states
+        char determinePosition() {
+            // For 3-position switch with 2 pins:
+            // Position 0: pin0=LOW,  pin1=HIGH  
+            // Position 1: pin0=HIGH, pin1=HIGH (middle position)
+            // Position 2: pin0=HIGH, pin1=LOW
+            
+            if (numPositions == 3) {
+                char pin0 = readInput(0);
+                char pin1 = readInput(1);
+                
+                if (pin0 == 0 && pin1 == 1) return 0;  // First position
+                if (pin0 == 1 && pin1 == 1) return 1;  // Middle position  
+                if (pin0 == 1 && pin1 == 0) return 2;  // Third position
+                
+                return -1; // Invalid state
+            }
+            
+            // For other configurations, use original logic
+            for (int i = 0; i < numPositions; ++i) {
+                if (readInput(i) == 0) {
+                    return i;
+                }
+            }
+            return -1; // No position active
+        }
+
     public: // Changed access specifier for overridden methods
         void resetThisState() override {
             lastState_ = -1;
+            currentSteadyState_ = -1;
         }
 
         // Added override for PollingInput's resetState
@@ -279,18 +308,23 @@ namespace DcsBios {
 
         void pollInput() override {
             unsigned long now = to_ms_since_boot(get_absolute_time());
-            for (int i = 0; i < numPositions; ++i) {
-                char state = readInput(i);
-                if (state == 0) {
-                    if (i != lastState_ && (now - lastDebounceTime_) >= debounceDelay_) {
-                        char msgBuffer[3];
-                        snprintf(msgBuffer, sizeof(msgBuffer), "%d", i);
-                        if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
-                            lastState_ = i;
-                            lastDebounceTime_ = now;
-                        }
-                    }
-                    break;
+            char currentPosition = determinePosition();
+            
+            // Check if position has changed
+            if (currentPosition != currentSteadyState_) {
+                lastDebounceTime_ = now;
+                currentSteadyState_ = currentPosition;
+            }
+            
+            // If position has been stable for debounce period and is different from last sent
+            if ((now - lastDebounceTime_) >= debounceDelay_ && 
+                currentPosition != lastState_ && 
+                currentPosition != -1) {
+                
+                char msgBuffer[3];
+                snprintf(msgBuffer, sizeof(msgBuffer), "%d", currentPosition);
+                if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
+                    lastState_ = currentPosition;
                 }
             }
         }

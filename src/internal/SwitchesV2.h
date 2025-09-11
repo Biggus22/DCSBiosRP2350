@@ -306,33 +306,43 @@ namespace DcsBios {
                 currentSteadyState_ = currentPosition;
             }
             
-            if ((now - lastDebounceTime_) >= debounceDelay_ && currentPosition != lastState_) {
-                bool shouldSend = false;
-                if (!isMomentary_) {
-                    if (currentPosition != -1) {
-                        shouldSend = true;
-                    }
-                } else { // isMomentary_ == true
-                    // For momentary 3-pos switches, only send for positions 0 and 2.
-                    if (numPositions == 3 && (currentPosition == 0 || currentPosition == 2)) {
-                        shouldSend = true;
-                    }
-                    // For other momentary switches, send if any pin is active.
-                    else if (numPositions != 3 && currentPosition != -1) {
-                        shouldSend = true;
-                    }
-                }
+            if ((now - lastDebounceTime_) >= debounceDelay_) {
+                // Check if the steady state has changed.
+                if (currentSteadyState_ != lastState_) {
+                    bool shouldSend = false;
+                    char positionToSend = -1;
 
-                if (shouldSend) {
-                    char msgBuffer[3];
-                    snprintf(msgBuffer, sizeof(msgBuffer), "%d", currentPosition);
-                    if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
-                        lastState_ = currentPosition;
+                    if (isMomentary_ && numPositions == 3) {
+                        // This block handles the user's specific case.
+                        // Filter out the middle position (1).
+                        if (currentSteadyState_ == 0) { // Down position
+                            shouldSend = true;
+                            positionToSend = 0;
+                        } else if (currentSteadyState_ == 2) { // Up position
+                            shouldSend = true;
+                            positionToSend = 2; // Value remains 2 as requested.
+                        }
+                        // The middle position (1) is ignored and will not trigger a send.
+                    } else {
+                        // Original logic for non-momentary and other momentary switches.
+                        if (currentSteadyState_ != -1) {
+                            shouldSend = true;
+                            positionToSend = currentSteadyState_;
+                        }
                     }
-                } else {
-                    // If not sending (e.g., momentary switch released to middle),
-                    // still update lastState_ to detect the next press.
-                    lastState_ = currentPosition;
+
+                    if (shouldSend) {
+                        char msgBuffer[3];
+                        snprintf(msgBuffer, sizeof(msgBuffer), "%d", positionToSend);
+                        if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
+                            // Only update lastState_ if a message was successfully sent.
+                            lastState_ = currentSteadyState_;
+                        }
+                    } else {
+                        // When the switch is released, it will move to a non-sending position (1).
+                        // We update lastState_ here so the next press (0 or 2) is a "change".
+                        lastState_ = currentSteadyState_;
+                    }
                 }
             }
         }
@@ -379,6 +389,118 @@ namespace DcsBios {
         }
     };
 
+    // A new class specifically for 3-position momentary switches acting as 2-position latching toggles.
+    template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
+    class Switch3PosMomentary2PosLatchingT : PollingInput, public ResettableInput {
+    private:
+        const char* msg_;
+        const uint8_t* pins_; // Array of pins for up/down positions
+        AW9523B* awExpander_;
+        MCP23S17* mcpExpander_;
+        PCF8575* pcfExpander_;
+        bool useAwExpander_;
+        bool useMcpExpander_;
+        bool usePcfExpander_;
+        unsigned long debounceDelay_;
+        unsigned long lastDebounceTime_ = 0;
+        char latchedState_ = -1; // This stores the last known ON (0 or 2) position.
+        char currentSteadyState_ = -1;
+
+    protected:
+        char readInput(uint8_t index) {
+            if (useAwExpander_ && awExpander_) return awExpander_->readPin(pins_[index]);
+            if (useMcpExpander_ && mcpExpander_) return mcpExpander_->digitalRead(pins_[index]);
+            if (usePcfExpander_ && pcfExpander_) return pcfExpander_->digitalRead(pins_[index]);
+            return gpio_get(pins_[index]);
+        }
+
+        char determinePosition() {
+            char pin0 = readInput(0);
+            char pin1 = readInput(1);
+            if (pin0 == 0 && pin1 == 1) return 0; // Down position
+            if (pin0 == 1 && pin1 == 1) return 1; // Middle position
+            if (pin0 == 1 && pin1 == 0) return 2; // Up position
+            return -1;
+        }
+
+    public:
+        void resetThisState() override {
+            latchedState_ = -1;
+            currentSteadyState_ = -1;
+        }
+
+        void resetState() override { 
+            resetThisState();
+        }
+
+        void pollInput() override {
+            unsigned long now = to_ms_since_boot(get_absolute_time());
+            char currentPosition = determinePosition();
+            
+            if (currentPosition != currentSteadyState_) {
+                lastDebounceTime_ = now;
+                currentSteadyState_ = currentPosition;
+            }
+            
+            if ((now - lastDebounceTime_) >= debounceDelay_) {
+                // Reset latched state when switch returns to middle position
+                if (currentSteadyState_ == 1 && latchedState_ != -1) {
+                    latchedState_ = -1; // Reset to neutral state
+                }
+                // If the current steady state is either position 0 or 2, send the message
+                else if (currentSteadyState_ == 0 || currentSteadyState_ == 2) {
+                    char msgBuffer[3];
+                    // Map the 'up' position value from 2 to 1 as requested.
+                    char valueToSend = (currentSteadyState_ == 2) ? 1 : currentSteadyState_;
+                    snprintf(msgBuffer, sizeof(msgBuffer), "%d", valueToSend);
+                    if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
+                        // Successfully sent message, but we don't latch the state
+                        // This allows pressing the same direction multiple times
+                    }
+                }
+            }
+        }
+    
+    public:
+        // Constructor for direct Pico pins
+        Switch3PosMomentary2PosLatchingT(const char* msg, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            awExpander_(nullptr), mcpExpander_(nullptr), pcfExpander_(nullptr), 
+            useAwExpander_(false), useMcpExpander_(false), usePcfExpander_(false) {
+            for (int i = 0; i < 2; ++i) { // Only two pins are needed for a 3-pos switch
+                gpio_init(pins[i]);
+                gpio_pull_up(pins[i]);
+                gpio_set_dir(pins[i], GPIO_IN);
+            }
+            resetThisState();
+        }
+    
+        // Constructors for expanders
+        Switch3PosMomentary2PosLatchingT(const char* msg, AW9523B* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            awExpander_(expander), useAwExpander_(true),
+            mcpExpander_(nullptr), useMcpExpander_(false),
+            pcfExpander_(nullptr), usePcfExpander_(false) {
+            resetThisState();
+        }
+        
+        Switch3PosMomentary2PosLatchingT(const char* msg, MCP23S17* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            mcpExpander_(expander), useMcpExpander_(true),
+            awExpander_(nullptr), useAwExpander_(false),
+            pcfExpander_(nullptr), usePcfExpander_(false) {
+            resetThisState();
+        }
+
+        Switch3PosMomentary2PosLatchingT(const char* msg, PCF8575* expander, const uint8_t* pins, unsigned long debounceDelay = 50) :
+            PollingInput(pollIntervalMs), msg_(msg), pins_(pins), debounceDelay_(debounceDelay),
+            pcfExpander_(expander), usePcfExpander_(true),
+            awExpander_(nullptr), useAwExpander_(false),
+            mcpExpander_(nullptr), useMcpExpander_(false) {
+            resetThisState();
+        }
+    };
+
     // Aliases for common use cases (direct pins)
     typedef Switch2PosT<> Switch2Pos;
     typedef Switch2PosT<POLL_INTERVAL_100_MS> Switch2Pos100ms;
@@ -388,6 +510,10 @@ namespace DcsBios {
 
     template <int numPositions> using SwitchMultiPos = SwitchMultiPosT<numPositions, POLL_EVERY_TIME>;
     template <int numPositions> using SwitchMultiPos100ms = SwitchMultiPosT<numPositions, POLL_INTERVAL_100_MS>;
+
+    // New aliases for 3-pos momentary to 2-pos latching switches
+    typedef Switch3PosMomentary2PosLatchingT<> Switch3PosMomentary2PosLatching;
+    typedef Switch3PosMomentary2PosLatchingT<POLL_INTERVAL_100_MS> Switch3PosMomentary2PosLatching100ms;
 
     // Aliases for AW9523B expander use
     typedef Switch2PosT<> AW9523BSwitch2Pos;
@@ -404,7 +530,7 @@ namespace DcsBios {
     // Aliases for PCF8575 expander use
     typedef Switch2PosT<> PCF8575Switch2Pos;
     typedef SwitchWithCover2PosT<> PCF8575SwitchWithCover2Pos;
-    template <int numPositions> using PCF8575SwitchMultiPos = SwitchMultiPosT<numPositions, POLL_EVERY_TIME>;
+    template <int numPositions> using PCF8575SwitchMultiPos = SwitchMultiPosT<numPositions, POLL_INTERVAL_100_MS>;
     template <int numPositions> using PCF8575SwitchMultiPos100ms = SwitchMultiPosT<numPositions, POLL_INTERVAL_100_MS>;
 
 } // namespace DcsBios

@@ -10,15 +10,16 @@ The component recognizes three physical positions:
 - Position 2: Up/Second position (pin 1 activated)
 
 ## Behavior
-With our fix, the switch now behaves as follows:
+The switch now behaves as a proper latching toggle:
 
-1. When pressed to position 0 (Down), it sends "0" to DCS-BIOS
-2. When released back to position 1 (Middle), the switch is ready for the next press
-3. When pressed to position 2 (Up), it sends "1" to DCS-BIOS (mapped from position 2)
-4. When released back to position 1 (Middle), the switch is ready for the next press
-5. You can press the same direction multiple times without having to press the opposite direction first
+1. When pressed to position 0 (Down), it sends "0" to DCS-BIOS and latches that state
+2. When released back to position 1 (Middle), it remains in the latched state
+3. When pressed to position 0 (Down) again, it sends "0" again (allows repeated presses)
+4. When pressed to position 2 (Up), it sends "1" to DCS-BIOS and latches that state
+5. When released back to position 1 (Middle), it remains in the new latched state
+6. When pressed to position 2 (Up) again, it sends "1" again (allows repeated presses)
 
-This differs from the previous behavior where the switch would "latch" and require pressing the opposite direction to change state again.
+The key improvement is that you can press the same direction multiple times without needing to press the opposite direction first, but it still maintains the latching behavior where the switch remembers its last activated state.
 
 ## Wiring
 Connect your 3-position momentary switch as follows:
@@ -43,3 +44,5 @@ DcsBios::Switch3PosMomentary2PosLatching mySwitch("SWITCH_NAME", switchPins);
 - The Down position (position 0) is sent as value "0" 
 - The Middle position (position 1) is used internally for debouncing and does not send messages
 - The component includes built-in debouncing to prevent false triggers
+- The component remembers its last activated state (latching behavior)
+- You can press the same direction multiple times without needing to press the opposite direction first

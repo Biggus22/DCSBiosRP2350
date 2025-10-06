@@ -12,7 +12,6 @@
 #include "internal/BoardMode.h"
 #include "internal/rs485.h"
 
-
 #define FADE_DELAY_MS 1  // Delay between steps
 
 uart_inst_t* rs485_uart = uart0; // Control UART in main
@@ -109,17 +108,17 @@ int main() {
     
 
 
+	DcsBios::Switch2Pos antiSkidSw("ANTI_SKID_SW", 8, true);
+	DcsBios::Switch2Pos ldgTaxiSw("LDG_TAXI_SW", 9, true);
+	DcsBios::Switch3Pos2Pin probeSw("PROBE_SW", &aw_io1, B6, B7, true);
+	DcsBios::Switch3Pos2Pin leftDdiHdgSw("LEFT_DDI_HDG_SW", &aw_io1, B9,  B8, true);
+	DcsBios::Switch2Pos hudAltSw("HUD_ALT_SW", 10, true);
+	DcsBios::Switch3Pos2Pin leftDdiCrsSw("LEFT_DDI_CRS_SW", &aw_io1, B15, B14, true);
+	DcsBios::Switch3Pos2Pin cmsdDispenseSw("CMSD_DISPENSE_SW", &aw_io2, C8,  C9, true);
+	DcsBios::Switch3Pos2Pin flirSw("FLIR_SW", &aw_io2, C10, C11, true);
+	DcsBios::Switch2Pos ltdRSw("LTD_R_SW", &aw_io2, C13);
+	DcsBios::Switch2Pos lstNflrSw("LST_NFLR_SW", 15, true);
 
-    DcsBios::LED master_AA_LED(FA_18C_hornet_MASTER_MODE_AA_LT_AM, &aw_led, A0, false, 250);
-    DcsBios::LED master_AG_LED(FA_18C_hornet_MASTER_MODE_AG_LT_AM, &aw_led, A1, false, 250);
-    DcsBios::LED master_AG_LED2(FA_18C_hornet_MASTER_MODE_AG_LT_AM, &aw_led, A2, false, 250);
-
-    DcsBios::Switch2Pos selJettBtn("SEL_JETT_BTN", &aw_io1, B0);
-
-    const uint8_t selJettKnobPins[5] = {B1, B2, B3, B4, B5};
-    DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 5> selJettKnob("SEL_JETT_KNOB", &aw_io1, selJettKnobPins);
-
-    DcsBios::Switch2Pos emerJettBtn("EMER_JETT_BTN", 6);
 
     DcsBios::setup();  // Initialize DCS-BIOS framework
     printf("DCS-BIOS setup complete!\n");

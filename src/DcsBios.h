@@ -6,7 +6,6 @@
 #endif
 
 #include <stdint.h>
-#include <cstdio>
 
 
 #include "internal/ExportStreamListener.h"
@@ -22,8 +21,7 @@
 #include "internal/BoardMode.h"
 #include "internal/core1_tasks.h"
 #include "internal/FoxConfig.h"
-#include "internal/MCP23S17.h"
-
+#include "pico/mutex.h"
 
 namespace DcsBios {
 	const unsigned char PIN_NC = 0xFF;
@@ -63,16 +61,39 @@ namespace DcsBios {
         ExportStreamListener::loopAll();
     }
 
+    static mutex_t g_fifo_mutex;
+    static bool g_fifo_mutex_inited = false;
+
+    static inline void fifo_lock() {
+        if (!g_fifo_mutex_inited) {
+            mutex_init(&g_fifo_mutex);
+            g_fifo_mutex_inited = true;
+        }
+        mutex_enter_blocking(&g_fifo_mutex);
+    }
+    static inline void fifo_unlock() { mutex_exit(&g_fifo_mutex); }
+
+    static inline void fifo_push_byte_blocking(uint8_t b) {
+        // Multicore FIFO is 32-bit; use low 8 bits for ASCII byte
+        multicore_fifo_push_blocking((uint32_t)b);
+    }
+
+    // Build "TAG VALUE\n" once, then push all bytes inside a single critical section.
     bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
-        for (; *msg; ++msg) {
-            if (!multicore_fifo_push_timeout_us(*msg, 100)) return false; // Timeout after 100us
+        // 1) Format entire line
+        char line[96];
+        int n = snprintf(line, sizeof(line), "%s %s\n", (msg ? msg : ""), (arg ? arg : ""));
+        if (n <= 0 || n >= (int)sizeof(line)) {
+            return false; // formatting failed or truncated
         }
-        if (!multicore_fifo_push_timeout_us(' ', 100)) return false;
-        for (; *arg; ++arg) {
-            if (!multicore_fifo_push_timeout_us(*arg, 100)) return false;
+
+        // 2) Atomic section to prevent cross-core interleaving and mid-line truncation
+        fifo_lock();
+        for (int i = 0; i < n; ++i) {
+            fifo_push_byte_blocking((uint8_t)line[i]);
         }
-        if (!multicore_fifo_push_timeout_us('\n', 100)) return false;
-    
+        fifo_unlock();
+
         DcsBios::PollingInput::setMessageSentOrQueued();
         return true;
     }
@@ -123,8 +144,7 @@ namespace DcsBios {
 
 
 #include "internal/Buttons.h"
-//#include "internal/Switches.h"
-#include "internal/SwitchesV2.h"
+#include "internal/Switches.h"
 #include "internal/SyncingSwitches.h" 
 #include "internal/Encoders.h"
 #include "internal/Potentiometers.h"

@@ -7,7 +7,7 @@
 #include "hardware/adc.h"
 #include "internal/ws2812.h"
 
-#define NUM_LEDS 13
+#define NUM_LEDS 18
 #define ADC_PIN 27
 #define CHASER_DELAY_MS 100
 

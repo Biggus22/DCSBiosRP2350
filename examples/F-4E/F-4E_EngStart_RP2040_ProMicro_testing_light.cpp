@@ -7,30 +7,35 @@
 #include "hardware/adc.h"
 #include "internal/ws2812.h"
 
-#define NUM_LEDS 18
+// Uncomment the line below to use analog input for brightness control.
+// Comment it out to set brightness to full (255).
+//#define USE_ANALOG_BRIGHTNESS
+
+#define NUM_LEDS 10
 #define ADC_PIN 27
 #define CHASER_DELAY_MS 100
 
-WS2812 externalLeds(pio0, 0, 14, false); // WS2812 object for external NeoPixels on pin 14
+WS2812 externalLeds(pio0, 0, 16, false); // WS2812 object for external NeoPixels on pin 14
 
 // Pin definitions
 const uint8_t colorSelectPins[3] = {5, 3, 4};  // PLT_ICS_AMPLIFIER pins for color selection
 const uint8_t modePins[2] = {8, 9};            // PLT_ICS_MODE pins for effect control
 
 // Color definitions - No blue channel working, so using red/green combinations
+// The WS2812 library on the Pico expects colors in GRBW (Green, Red, Blue, White) order.
 struct Color {
     uint8_t g, r, b, w;  // Green, Red, Blue, White order
 };
 
 const Color colors[8] = {
-    {0, 0, 0, 0},       // 000 - Off
-    {0, 255, 0, 0},     // 001 - Red
-    {255, 0, 0, 0},     // 010 - Green  
-    {255, 255, 0, 0},   // 011 - Yellow
-    {128, 255, 0, 0},   // 100 - Orange 
-    {0, 0, 0, 255},     // 101 - Blue (using white channel!)
-    {64, 255, 0, 0},    // 110 - Red-Orange
-    {255, 255, 255, 0}  // 111 - White
+    {0, 0, 0, 0},      // 000 - Off
+    {0, 255, 0, 0},    // 001 - Red
+    {255, 0, 0, 0},    // 010 - Green  
+    {255, 255, 0, 0},  // 011 - Yellow
+    {128, 255, 0, 0},  // 100 - Orange 
+    {0, 0, 0, 255},    // 101 - Blue (using white channel!)
+    {64, 255, 0, 0},   // 110 - Red-Orange
+    {255, 255, 255, 0} // 111 - White
 };
 
 // Global variables
@@ -57,10 +62,12 @@ void initializeGPIO() {
         gpio_pull_up(modePins[i]);
     }
     
-    // Initialize ADC for potentiometer
+    // Initialize ADC only if the analog brightness feature is enabled
+    #ifdef USE_ANALOG_BRIGHTNESS
     adc_init();
     adc_gpio_init(ADC_PIN);
     adc_select_input(1); // GPIO27 is ADC1
+    #endif
 }
 
 uint8_t readColorSelect() {
@@ -72,6 +79,14 @@ uint8_t readColorSelect() {
     // Rotary switch logic - treat "no pins active" as blue
     uint8_t value = 0;
     
+    // --- START: MODIFICATION TO HARDCODE COLOR TO RED ---
+    // Since you can only access pins 8 and 9, we are overriding the color selection logic
+    // and forcing the color to be red (value 1) regardless of the state of pins 3, 4, and 5.
+    value = 1; 
+    // --- END: MODIFICATION ---
+    
+    // Original logic commented out below:
+    /*
     if (!pin3_active && !pin5_active && !pin4_active) {
         // No pins active = Orange (since blue doesn't work)
         value = 4;
@@ -88,6 +103,7 @@ uint8_t readColorSelect() {
         // Multiple pins or other combinations
         value = 7; // White for unknown states
     }
+    */
     
     // Debug output - show every loop to catch intermittent issues
     printf("Live pins: 3=%d 5=%d 4=%d -> Color:%d\n", 
@@ -100,16 +116,21 @@ void readModeSelect(bool &rainbowChaser, bool &colorChaser) {
     bool pin8 = !gpio_get(modePins[0]);  // Pin 8, inverted
     bool pin9 = !gpio_get(modePins[1]);  // Pin 9, inverted
     
-    rainbowChaser = pin8 && !pin9;     // Pin 8 on, pin 9 off = rainbow chaser
+    rainbowChaser = pin8 && !pin9;      // Pin 8 on, pin 9 off = rainbow chaser
     colorChaser = !pin8 && pin9;       // Pin 8 off, pin 9 on = selected color chaser
     // Both off or both on = solid color
 }
 
 uint8_t readBrightness() {
+    #ifdef USE_ANALOG_BRIGHTNESS
     uint16_t adcValue = adc_read();
     // Convert 12-bit ADC (0-4095) to 8-bit brightness (0-255)
     // Reverse the potentiometer direction: 4095 -> 0, 0 -> 255
     return (uint8_t)(((4095 - adcValue) * 255) / 4095);
+    #else
+    // If analog brightness is not used, return max brightness
+    return 255;
+    #endif
 }
 
 void updateLEDs() {
@@ -127,7 +148,8 @@ void updateLEDs() {
                 (uint8_t)((currentColor.b * currentBrightness) / 255),
                 (uint8_t)((currentColor.w * currentBrightness) / 255)
             };
-            externalLeds.setPixel(i, externalLeds.rgbw(scaledColor.r, scaledColor.g, scaledColor.b, scaledColor.w));
+            // CORRECTED: Pass green and red values in the correct order for the WS2812 library.
+            externalLeds.setPixel(i, externalLeds.rgbw(scaledColor.g, scaledColor.r, scaledColor.b, scaledColor.w));
         }
     } else if (colorChaserMode) {
         // Single color chaser - only one LED on at a time with selected color
@@ -139,8 +161,9 @@ void updateLEDs() {
             (uint8_t)((currentColor.b * currentBrightness) / 255),
             (uint8_t)((currentColor.w * currentBrightness) / 255)
         };
+        // CORRECTED: Pass green and red values in the correct order for the WS2812 library.
         externalLeds.setPixel(chaserPosition, 
-                             externalLeds.rgbw(scaledColor.r, scaledColor.g, scaledColor.b, scaledColor.w));
+                                 externalLeds.rgbw(scaledColor.g, scaledColor.r, scaledColor.b, scaledColor.w));
     } else {
         // Solid color - all LEDs same color
         Color currentColor = colors[selectedColor];
@@ -151,8 +174,9 @@ void updateLEDs() {
             (uint8_t)((currentColor.w * currentBrightness) / 255)
         };
         for (int i = 0; i < NUM_LEDS; i++) {
+            // CORRECTED: Pass green and red values in the correct order for the WS2812 library.
             externalLeds.setPixel(i, 
-                                 externalLeds.rgbw(scaledColor.r, scaledColor.g, scaledColor.b, scaledColor.w));
+                                     externalLeds.rgbw(scaledColor.g, scaledColor.r, scaledColor.b, scaledColor.w));
         }
     }
     
@@ -231,7 +255,8 @@ int main() {
     for (int color = 1; color <= 7; color++) {
         Color testColor = colors[color];
         for (int i = 0; i < NUM_LEDS; i++) {
-            externalLeds.setPixel(i, externalLeds.rgbw(testColor.r, testColor.g, testColor.b, testColor.w));
+            // CORRECTED: Pass green and red values in the correct order for the WS2812 library.
+            externalLeds.setPixel(i, externalLeds.rgbw(testColor.g, testColor.r, testColor.b, testColor.w));
         }
         externalLeds.show();
         sleep_ms(200);

@@ -1,8 +1,9 @@
 #ifndef PICO_BOARD
 #define PICO_BOARD
 #endif
-#include <stdio.h>
+#include "pico/time.h"
 #include <string.h>
+#include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "DcsBios.h"
@@ -13,12 +14,13 @@
 #include "internal/BoardMode.h"
 #include "internal/rs485.h"
 #include "hardware/pwm.h"
-#include "internal/ws2812.h"
-#define NUM_LEDS 13 // Total number of SK6812 LEDs
+#include "internal/ws2812.h" // Include the WS2812 header
+
+#define NUM_LEDS 14          // Total number of SK6812 LEDs
 #define ONBOARD_NEOPIXEL_PIN 16 // Define the pin for the onboard NeoPixel
 
-WS2812 externalLeds(pio0, 0, 14, false); // Global WS2812 object for external NeoPixels on pin 14
-unsigned int lastBrightness = 0;
+WS2812 externalLeds(pio0, 0, 16, false); // Global WS2812 object for external NeoPixels on pin 16 (Changed to 24-bit RGB mode)
+unsigned int lastBrightness = 0;         // Last brightness value for console lighting
 
 char currentAircraftName[24] = "";       // Current aircraft name for identification
 bool aircraftNameReceived = false;       // Flag to track if we've received any aircraft name data
@@ -249,19 +251,11 @@ void manageLedStates() {
     }
 }
 
-uart_inst_t *rs485_uart = uart0;
-
-// DCS-BIOS F-4E INPUT FUNCTIONS HERE
-const uint8_t pltIcsAmplifierPins[3] = {5, 3, 4};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmplifier("PLT_ICS_AMPLIFIER", pltIcsAmplifierPins);
-const uint8_t pltIcsModePins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
-DcsBios::Switch3Pos2Pin pltIcsMode("PLT_ICS_MODE", pltIcsModePins[0], pltIcsModePins[1]);
-
-DcsBios::Potentiometer pltIcsIntercomVol("PLT_ICS_INTERCOM_VOL", 27, true, 0, 4095);
+uart_inst_t *rs485_uart = uart0; // Control UART in main
 
 // DCS-BIOS callback function for F-4E console lighting
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
-    lastDcsBiosDataTime = to_ms_since_boot(get_absolute_time()); // Update data time when receiving F-4E console brightness
+    lastDcsBiosDataTime = to_ms_since_boot(get_absolute_time()); // Update data time when receiving console brightness
     if (isF4Active() && currentLedState == LED_NORMAL_F4) {
         uint8_t intensity = (uint8_t)((consoleBrightness * 255) / 65535);
         
@@ -273,37 +267,52 @@ void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
 }
 DcsBios::IntegerBuffer pltIntLightConsoleBuffer(F_4E_PLT_INT_LIGHT_CONSOLE, onPltIntLightConsoleChange);
 
+const uint8_t pltEngineMasterLPins[2] = {6, 7};
+DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltEngineMasterL("PLT_ENGINE_MASTER_L", pltEngineMasterLPins);
+
+const uint8_t pltEngineMasterRPins[2] = {14, 15};
+DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltEngineMasterR("PLT_ENGINE_MASTER_R", pltEngineMasterRPins);
+
+//const uint8_t pltEngineStartRPins[2] = {13, 12};
+DcsBios::Switch3Pos2Pin pltEngineStart("PLT_ENGINE_START", 13, 12);
+
+//const uint8_t pltControlsRudderTrimPins[2] = {9, 8};
+DcsBios::Switch3Pos2Pin pltControlsRudderTrim("PLT_CONTROLS_RUDDER_TRIM", 9, 8);
+
+//const uint8_t pltCadcCorrectionPins[2] = {11, 10};
+DcsBios::Switch3Pos2Pin pltCadcCorrection("PLT_CADC_CORRECTION", 11, 10);
+
+DcsBios::Potentiometer pltHudBrightness("PLT_HUD_BRIGHTNESS", 28, true);
+
+
 // DCS-BIOS F-14A/B FUNCTIONS HERE
-const uint8_t pltIcsAmpSelPins[3] = {5, 3, 4};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmpSel("PLT_ICS_AMP_SEL", pltIcsAmpSelPins);
-const uint8_t pltIcsFuncSelPins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
-DcsBios::Switch3Pos2Pin pltIcsFuncSel("PLT_ICS_FUNC_SEL", pltIcsFuncSelPins[0], pltIcsFuncSelPins[1]);
-
-DcsBios::Potentiometer pltIcsVol("PLT_ICS_VOL", 27, true, 0, 4095);
-
 // DCS-BIOS callback function for F-14 console lighting
 void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
     lastDcsBiosDataTime = to_ms_since_boot(get_absolute_time()); // Update data time when receiving F-14 console brightness
     if (isF14Active() && currentLedState == LED_NORMAL_F14) {
-        // F-14 console lighting switch has 9 positions (0-8)
-        // Convert position to brightness percentage
         uint8_t brightness = 0;
-
+        
         if (consoleBrightness <= 8) {
-            // Position-based values: 0, 13, 25, 38, 50, 63, 75, 88, 100% (positions 0-8)
             uint8_t percentages[9] = {0, 13, 25, 38, 50, 63, 75, 88, 100};
             brightness = (percentages[consoleBrightness] * 255) / 100;
         } else {
             brightness = (uint8_t)((consoleBrightness * 255) / 65535);
         }
-
+        
         for (int i = 0; i < NUM_LEDS; i++) {
-            externalLeds.setPixel(i, externalLeds.rgbw(0, brightness, 0, 0)); // Using rgbw for SK6812
+            externalLeds.setPixel(i, externalLeds.rgbw(0, brightness, 0, 0));
         }
         externalLeds.show();
     }
 }
+
+// Declare the IntegerBuffer for F-14 console lighting
 DcsBios::IntegerBuffer f14PltIntLightConsoleBuffer(F_14_PLT_LIGHT_INTENT_CONSOLE, onF14PltIntLightConsoleChange);
+
+const uint8_t pltEngineCrankPins[2] = {13, 12};
+DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltEngineCrank("PLT_ENGINE_CRANK", pltEngineCrankPins);
+
+DcsBios::Potentiometer pltHudBright("PLT_HUD_BRIGHT", 28, true);
 
 // Updated callback functions
 void onAcftNameChange(char* newValue) {
@@ -333,7 +342,10 @@ int main()
     stdio_init_all();                      // Initialize USB CDC
     DcsBios::initHeartbeat(HEARTBEAT_LED); // Initialize heartbeat LED
     sleep_ms(2000);                        // Wait for USB CDC to be ready
-    externalLeds.begin(NUM_LEDS); // Initialize with 10 pixels
+
+
+    // Initialize the WS2812 strip for the power-on flash
+    externalLeds.begin(NUM_LEDS); // Initialize with correct number of pixels
 
     // Power-on Green Flash for 1 second
     for (int i = 0; i < NUM_LEDS; i++)
@@ -341,14 +353,13 @@ int main()
         externalLeds.setPixel(i, externalLeds.rgbw(0, 201, 0, 0)); // Set all pixels to green (R=0, G=255, B=0, W=0)
     }
     externalLeds.show();
-    sleep_ms(10000); // Display green for 1 second
+    sleep_ms(5000); // Display green for 1 second
 
     // Clear LEDs after the flash
     externalLeds.clear();
     externalLeds.show();
 
-    uint8_t boardAddress = 0xF; // Keep as 0xF for now, as the user is debugging buffer overflow on slave
-                                // This will be changed to SLAVE_MODE_MIN in a later step if needed.
+    uint8_t boardAddress = 0xF;
 
     DcsBios::BoardMode board = DcsBios::determineBoardMode(boardAddress);
     printf("Board address: 0x%X\n", boardAddress);
@@ -380,6 +391,8 @@ int main()
 
     DcsBios::setup(); // Initialize DCS-BIOS framework
     printf("DCS-BIOS setup complete!\n");
+    printf("Minimal testing program running\n");
+
     while (true)
     {
         DcsBios::loop();            // Handle input, output, and LED updates

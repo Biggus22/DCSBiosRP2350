@@ -23,8 +23,8 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
-#set(PICO_BOARD waveshare_rp2040_zero CACHE STRING "Board type")
+set(PICO_BOARD 0xcb_helios CACHE STRING "Board type")
+
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -36,25 +36,35 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
+# add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
+# add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
+# add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
+# add_executable(DCSBiosRP2350 Fox2_Demo.cpp)
+# add_executable(DCSBiosRP2350 Fox1_Panel_Switch.cpp)
+
+#******  F-4E Examples *********
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/RP2040_Zero_ICS_LED_test.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero_MagTest.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ACFS_RP2040_Pico_testing_light.cpp)
-# add_executable(DCSBiosRP2350 test_programs/Stepper_test.cpp)
-# add_executable(DCSBiosRP2350 test_programs/RS485_slave_hardcoded_addr.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Eng_Start_RP2040_ProMicro.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_EngStart_RP2040_ProMicro_testing_light.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
+ add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
 
-add_executable(DCSBiosRP2350 test_programs/RS485_test_master.cpp)
-# add_executable(DCSBiosRP2350 test_programs/RS485_test_slave.cpp)
+#****** Test Programs *********
+# add_executable(DCSBiosRP2350 test_programs/swarm.cpp)
 # add_executable(DCSBiosRP2350 test_programs/LED_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/LED_test_auto.cpp)
 # add_executable(DCSBiosRP2350 test_programs/MCP23S17_testing_sketch.cpp)
 # add_executable(DCSBiosRP2350 test_programs/ADS1115_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/PCF8575_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/RP2040_Zero_onboard_RGB_LED_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/MCP23S17_example.cpp)
-# add_executable(DCSBiosRP2350 test_programs/DCSBiosRP2350.cpp)
 
-# add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
-# add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
+
+
 
 
 
@@ -70,8 +80,11 @@ pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/
     ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/i2c.pio
 )
 
+#pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/st7789.pio
+#)
+
 # Add the standard library to the build
-target_link_libraries(DCSBiosRP2350
+target_link_libraries(DCSBiosRP2350 PRIVATE
         pico_stdlib
         pico_multicore
         pico_time
@@ -83,13 +96,20 @@ target_link_libraries(DCSBiosRP2350
         hardware_watchdog
         hardware_spi
         hardware_uart
+        hardware_dma
+        hardware_gpio
         )
+
+
+target_link_libraries(DCSBiosRP2350 PRIVATE)
 
 # Add the standard include files to the build
 target_include_directories(DCSBiosRP2350 PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/src/internal
+        ${CMAKE_CURRENT_LIST_DIR}/src/external/st7789-library-for-pico-main/src/include
 )
 target_sources(DCSBiosRP2350 PRIVATE
     src/internal/Protocol.cpp
@@ -103,9 +123,11 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/BoardMode.cpp
     src/internal/rs485.cpp
     src/internal/core1_tasks.cpp
+    src/external/st7789-library-for-pico-main/src/st7789.c
+    src/internal/TM1637.cpp
     src/internal/Mcp23s17.cpp
     src/internal/PCF8575.cpp
-    #src/internal/rs485_arduino_protocol.cpp
+    #src/internal/ADS1115.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 

@@ -14,20 +14,14 @@
 #include "internal/rs485.h"
 #include "hardware/pwm.h"
 #include "internal/ws2812.h"
-#define NUM_LEDS 13 // Total number of SK6812 LEDs
+#define NUM_LEDS 12 // Total number of SK6812 LEDs
 
-WS2812 externalLeds(pio0, 0, 14, false); // Global WS2812 object for external NeoPixels on pin 14
+WS2812 externalLeds(pio0, 0, 3, false); // Global WS2812 object for external NeoPixels on pin 14
 
 uart_inst_t *rs485_uart = uart0;
 
 // DCS-BIOS F-4E INPUT FUNCTIONS HERE
-const uint8_t pltIcsAmplifierPins[3] = {5, 4, 3};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmplifier("PLT_ICS_AMPLIFIER", pltIcsAmplifierPins,
-0x2a00, 0x0300, 8, 50);
-const uint8_t pltIcsModePins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
-DcsBios::Switch3Pos2Pin pltIcsMode("PLT_ICS_MODE", pltIcsModePins[0], pltIcsModePins[1]);
 
-DcsBios::Potentiometer pltIcsIntercomVol("PLT_ICS_INTERCOM_VOL", 27, true, 0, 4095);
 
 // DCS-BIOS callback function for F-4E console lighting (red)
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
@@ -41,13 +35,6 @@ void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
 DcsBios::IntegerBuffer pltIntLightConsoleBuffer(F_4E_PLT_INT_LIGHT_CONSOLE, onPltIntLightConsoleChange);
 
 // DCS-BIOS F-14A/B FUNCTIONS HERE
-const uint8_t pltIcsAmpSelPins[3] = {5, 4, 3};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmpSel("PLT_ICS_AMP_SEL", pltIcsAmpSelPins,
-0x1234, 0x0600, 9, 50);
-const uint8_t pltIcsFuncSelPins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
-DcsBios::Switch3Pos2Pin pltIcsFuncSel("PLT_ICS_FUNC_SEL", pltIcsFuncSelPins[0], pltIcsFuncSelPins[1]);
-
-DcsBios::Potentiometer pltIcsVol("PLT_ICS_VOL", 27, true, 0, 4095);
 
 // DCS-BIOS callback function for F-14 console lighting (red)
 void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {

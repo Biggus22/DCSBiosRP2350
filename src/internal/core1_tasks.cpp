@@ -1,9 +1,11 @@
 #include "core1_tasks.h"
 #include "rs485.h"
+#include "rs485_arduino.h"
 #include "hardware/watchdog.h"
 #include "pico/multicore.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include "BoardMode.h"
 #include <stdio.h>
 #include <cstring>
@@ -14,7 +16,117 @@ namespace DcsBios {
 
     #define FIFO_TIMEOUT 100
 
+#ifdef DCSBIOS_RS485_ARDUINO
+    // Arduino RS485 frame sender: address, msgType, length, data, checksum
+    static inline void rs485_send_frame(uint8_t address, uint8_t msgType, const uint8_t* data, uint8_t length) {
+        sleep_us(DCSBIOS_RS485_ARDUINO_INTERFRAME_GAP_US);
+
+        uint8_t header[3] = { address, msgType, length };
+        rs485_send_bytes(header, sizeof(header), false);
+        if (length > 0 && data) {
+            rs485_send_bytes(data, length, false);
+        }
+        uint8_t checksum = 0;
+        rs485_send_bytes(&checksum, 1, true);
+    }
+#endif
+
     void core1_host_task() {
+#ifdef DCSBIOS_RS485_ARDUINO
+        using namespace DcsBios::ArduinoRs485;
+
+        // Active-only polling state (Arduino RS485 compatibility mode)
+        static ActiveSlaveSet activeSlaves;
+        static bool configSet = false;
+        if (!configSet) {
+            PollConfig cfg;
+            cfg.activeOnly = (DCSBIOS_RS485_ARDUINO_ACTIVE_ONLY != 0);
+            cfg.maxMisses = DCSBIOS_RS485_ARDUINO_MAX_MISSES;
+            activeSlaves.setConfig(cfg);
+            configSet = true;
+        }
+
+        static FrameReceiver frameRx;
+        static Frame frame{};
+
+        static uint8_t txBuffer[DCSBIOS_RS485_ARDUINO_FRAME_MAX];
+        static uint8_t txLen = 0;
+
+        static absolute_time_t lastUsbRx = get_absolute_time();
+        static absolute_time_t lastPoll = get_absolute_time();
+        static absolute_time_t responseStart = get_absolute_time();
+        static bool waitingResponse = false;
+        static uint8_t waitingAddress = 0;
+
+        while (true) {
+            watchdog_update();
+
+            // --- USB CDC Receive -> DCS-BIOS Parser and RS-485 Broadcast (Arduino framing) ---
+            int ch = getchar_timeout_us(0);
+            if (ch != PICO_ERROR_TIMEOUT) {
+                uint8_t byte = static_cast<uint8_t>(ch);
+                multicore_fifo_push_timeout_us((uint32_t)byte, FIFO_TIMEOUT);
+                lastUsbRx = get_absolute_time();
+
+                if (txLen < DCSBIOS_RS485_ARDUINO_FRAME_MAX) {
+                    txBuffer[txLen++] = byte;
+                }
+
+                if (txLen >= DCSBIOS_RS485_ARDUINO_FRAME_MAX) {
+                    rs485_send_frame(0, 0, txBuffer, txLen);
+                    txLen = 0;
+                }
+            }
+
+            if (txLen > 0) {
+                int64_t idleUs = absolute_time_diff_us(lastUsbRx, get_absolute_time());
+                if (idleUs > 200) {
+                    rs485_send_frame(0, 0, txBuffer, txLen);
+                    txLen = 0;
+                }
+            }
+
+            // --- RS-485 Receive (Arduino frame handling) ---
+            while (DcsBios::rs485_receive_available()) {
+                uint8_t byte = static_cast<uint8_t>(DcsBios::rs485_receive_char());
+                if (frameRx.pushByte(byte, frame)) {
+                    if (waitingResponse && frame.address == waitingAddress && frame.msgType == 0) {
+                        activeSlaves.recordResponse(frame.address);
+                        waitingResponse = false;
+
+                        for (uint8_t i = 0; i < frame.length; ++i) {
+                            putchar((char)frame.data[i]);
+                        }
+                    }
+                }
+            }
+
+            // --- Poll loop (active-only when enabled; fallback to full scan) ---
+            if (waitingResponse) {
+                int64_t elapsedUs = absolute_time_diff_us(responseStart, get_absolute_time());
+                if (elapsedUs > DCSBIOS_RS485_ARDUINO_RESPONSE_TIMEOUT_US) {
+                    activeSlaves.recordTimeout(waitingAddress);
+                    waitingResponse = false;
+                }
+            } else {
+                int64_t sincePollUs = absolute_time_diff_us(lastPoll, get_absolute_time());
+                if (sincePollUs > DCSBIOS_RS485_ARDUINO_POLL_INTERVAL_US) {
+                    uint8_t addr = activeSlaves.nextAddress();
+                    rs485_send_frame(addr, 0, nullptr, 0);
+                    waitingResponse = true;
+                    waitingAddress = addr;
+                    lastPoll = get_absolute_time();
+                    responseStart = lastPoll;
+                }
+            }
+
+            // --- Core0 Output -> USB CDC ---
+            if (multicore_fifo_rvalid()) {
+                putchar((char)multicore_fifo_pop_blocking());
+                sleep_us(10);
+            }
+        }
+#else
         static char slaveBuffer[128];
         static uint8_t slaveBufferPos = 0;
         static bool receivingSlaveMessage = false;
@@ -73,6 +185,7 @@ namespace DcsBios {
                 sleep_us(10);
             }
         }
+#endif
     }
     
     

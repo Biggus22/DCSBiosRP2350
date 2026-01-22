@@ -2,6 +2,7 @@
 #define __DCSBIOS_ANALOGMULTIPOS_H
 
 #include <stdint.h>
+#include <cstdio>
 #include "hardware/adc.h"
 #include "pico/stdlib.h"
 #include "PollingInput.h"
@@ -38,7 +39,7 @@ private:
 
 			if (state != lastState_) {
 				char cstr[5];
-				sprintf(cstr, "%d", state);
+				std::snprintf(cstr, sizeof(cstr), "%d", state);
 				if (tryToSendDcsBiosMessage(msg_, cstr)) {
 					lastState_ = state;
 				}

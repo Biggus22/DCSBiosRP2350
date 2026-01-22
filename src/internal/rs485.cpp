@@ -51,6 +51,27 @@ void rs485_send_string(const char* str) {
     rs485_flush();
 }
 
+void rs485_send_bytes(const uint8_t* data, size_t len, bool flush) {
+    if (!data || len == 0) {
+        if (flush) {
+            rs485_flush();
+        }
+        return;
+    }
+
+    rs485_tx_enable();
+    for (size_t i = 0; i < len; ++i) {
+        while (!uart_is_writable(_rs485_uart));
+        uart_putc_raw(_rs485_uart, data[i]);
+    }
+
+    if (flush) {
+        rs485_flush();
+    } else {
+        uart_tx_wait_blocking(_rs485_uart);
+    }
+}
+
 void rs485_flush() {
     uart_tx_wait_blocking(_rs485_uart);
     sleep_us(400);  // Let last bits fully transmit

@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <cstdio>
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
 
@@ -79,7 +80,7 @@ namespace DcsBios {
 			if (requiredAdjustment != 0) {
 				if (to_ms_since_boot(get_absolute_time()) - lastSendTime > 100) {
 					char buff[7];
-					sprintf(buff, "%+d", requiredAdjustment);
+					std::snprintf(buff, sizeof(buff), "%+d", requiredAdjustment);
 					tryToSendDcsBiosMessage(msg_, buff);
 					lastSendTime = to_ms_since_boot(get_absolute_time());
 				}

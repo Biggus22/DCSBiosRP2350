@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD 0xcb_helios CACHE STRING "Board type")
+set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
@@ -51,7 +51,11 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Eng_Start_RP2040_ProMicro.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_EngStart_RP2040_ProMicro_testing_light.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
- add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
+#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+
+#****** Arduino RS485 Compatibility (Pico Master) *********
+add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
 
 #****** Test Programs *********
 # add_executable(DCSBiosRP2350 test_programs/swarm.cpp)
@@ -62,7 +66,8 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 test_programs/PCF8575_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/RP2040_Zero_onboard_RGB_LED_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/MCP23S17_example.cpp)
-
+# add_executable(DCSBiosRP2350 test_programs/rs485_arduino_framing_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/X27-168_stepper_RP2350-Zero.cpp)
 
 
 
@@ -74,6 +79,9 @@ pico_set_program_version(DCSBiosRP2350 "0.1")
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(DCSBiosRP2350 0)
 pico_enable_stdio_usb(DCSBiosRP2350 1)
+
+# Enable Arduino RS485 framing compatibility in this example build
+target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
 
 # Compile ws2812.pio into ws2812.pio.h
 pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/ws2812.pio
@@ -109,7 +117,7 @@ target_include_directories(DCSBiosRP2350 PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/internal
-        ${CMAKE_CURRENT_LIST_DIR}/src/external/st7789-library-for-pico-main/src/include
+        # ${CMAKE_CURRENT_LIST_DIR}/src/external/st7789-library-for-pico-main/src/include
 )
 target_sources(DCSBiosRP2350 PRIVATE
     src/internal/Protocol.cpp
@@ -122,11 +130,13 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/DeviceAddress.cpp
     src/internal/BoardMode.cpp
     src/internal/rs485.cpp
+    src/internal/rs485_arduino.cpp
     src/internal/core1_tasks.cpp
-    src/external/st7789-library-for-pico-main/src/st7789.c
+    # src/external/st7789-library-for-pico-main/src/st7789.c
     src/internal/TM1637.cpp
     src/internal/Mcp23s17.cpp
     src/internal/PCF8575.cpp
+    src/internal/X27_stepper.cpp
     #src/internal/ADS1115.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)

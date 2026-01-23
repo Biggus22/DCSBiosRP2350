@@ -1062,7 +1062,7 @@ Disassembly of section .text:
 10000964:	9b00      	ldr	r3, [sp, #0]
 10000966:	1bc0      	subs	r0, r0, r7
 10000968:	eb61 0103 	sbc.w	r1, r1, r3
-1000096c:	f241 3389 	movw	r3, #5001	@ 0x1389
+1000096c:	f641 7341 	movw	r3, #8001	@ 0x1f41
 10000970:	4298      	cmp	r0, r3
 10000972:	f171 0100 	sbcs.w	r1, r1, #0
 10000976:	f280 8085 	bge.w	10000a84 <_ZN7DcsBios15core1_host_taskEv+0x260>
@@ -1121,7 +1121,7 @@ Disassembly of section .text:
 10000a10:	9b00      	ldr	r3, [sp, #0]
 10000a12:	1b80      	subs	r0, r0, r6
 10000a14:	eb61 0103 	sbc.w	r1, r1, r3
-10000a18:	f242 7311 	movw	r3, #10001	@ 0x2711
+10000a18:	f246 13a9 	movw	r3, #25001	@ 0x61a9
 10000a1c:	4298      	cmp	r0, r3
 10000a1e:	f171 0100 	sbcs.w	r1, r1, #0
 10000a22:	dbaa      	blt.n	1000097a <_ZN7DcsBios15core1_host_taskEv+0x156>

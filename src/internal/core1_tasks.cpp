@@ -17,17 +17,46 @@ namespace DcsBios {
     #define FIFO_TIMEOUT 100
 
 #ifdef DCSBIOS_RS485_ARDUINO
-    // Arduino RS485 frame sender: address, msgType, length, data, checksum
+    // ==========================================================================
+    // Arduino RS485 Frame Transmission Helper
+    // ==========================================================================
+    //
+    // Constructs and transmits an Arduino DCS-BIOS RS485 frame with proper timing.
+    //
+    // Frame wire format: [address][msgType][length][data...][checksum]
+    //
+    // PARAMETERS:
+    //   address:  Slave address to poll (1-126) or 0 for broadcast
+    //   msgType:  Message type (currently only 0 is used)
+    //   data:     Optional payload (DCS-BIOS data from PC)
+    //   length:   Number of payload bytes
+    //
+    // TIMING:
+    //   - Enforces inter-frame gap before transmission (600µs by default)
+    //   - This quiet period allows Arduino slaves to reset their frame receivers
+    //   - Without this gap, slaves may experience byte misalignment errors
+    //
+    // CHECKSUM:
+    //   - Currently hardcoded to 0 (reserved for future use)
+    //   - Arduino library expects checksum byte but doesn't validate it
+    //
     static inline void rs485_send_frame(uint8_t address, uint8_t msgType, const uint8_t* data, uint8_t length) {
+        // Wait for inter-frame gap (bus quiet time)
+        // This ensures the Arduino slave's frame receiver has reset to initial state
         sleep_us(DCSBIOS_RS485_ARDUINO_INTERFRAME_GAP_US);
 
+        // Transmit frame header: [address][msgType][length]
         uint8_t header[3] = { address, msgType, length };
         rs485_send_bytes(header, sizeof(header), false);
+
+        // Transmit payload data (if any)
         if (length > 0 && data) {
             rs485_send_bytes(data, length, false);
         }
+
+        // Transmit checksum (currently always 0)
         uint8_t checksum = 0;
-        rs485_send_bytes(&checksum, 1, true);
+        rs485_send_bytes(&checksum, 1, true); // true = flush UART TX FIFO
     }
 #endif
 

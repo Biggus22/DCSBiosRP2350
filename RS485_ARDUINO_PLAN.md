@@ -79,3 +79,4 @@ We need real Pico + Arduino RS485 slave devices to:
 ## Notes
 - We are intentionally **not** adding Arduino example sketches to this repo (they live in the Arduino library).
 - The Pico master example exists here to demonstrate Arduino‑compatible RS485 behavior on this platform.
+- **Possible future expansion:** add **dual‑bus support** so a single RP2350 master can run two independent RS485 busses simultaneously (one Arduino‑compat bus with `DCSBIOS_RS485_ARDUINO`, one native RP2350 bus), each with its own UART/transceiver and host loop.

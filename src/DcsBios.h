@@ -6,6 +6,7 @@
 #endif
 
 #include <stdint.h>
+#include <cstdio>
 
 
 #include "internal/ExportStreamListener.h"
@@ -82,7 +83,7 @@ namespace DcsBios {
     bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
         // 1) Format entire line
         char line[96];
-        int n = snprintf(line, sizeof(line), "%s %s\n", (msg ? msg : ""), (arg ? arg : ""));
+        int n = std::snprintf(line, sizeof(line), "%s %s\n", (msg ? msg : ""), (arg ? arg : ""));
         if (n <= 0 || n >= (int)sizeof(line)) {
             return false; // formatting failed or truncated
         }

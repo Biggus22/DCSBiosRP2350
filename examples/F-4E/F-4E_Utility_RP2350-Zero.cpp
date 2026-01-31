@@ -60,9 +60,9 @@ void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
 DcsBios::IntegerBuffer f14PltIntLightConsoleBuffer(F_14_PLT_LIGHT_INTENT_CONSOLE, onF14PltIntLightConsoleChange);
 
 // Servo output for oxygen flow valve - using original Arduino DCS-BIOS values
-DcsBios::ServoOutput pltO2Flow(0x2b32, 13, 620, 2800);
-
-
+DcsBios::ServoOutput pltO2Flow(0x2b32, 9, 620, 2800);
+DcsBios::ServoOutput pltO2Flow1(0x2b32, 11, 620, 2800);
+DcsBios::ServoOutput pltO2Flow2(0x2b32, 13, 620, 2800);
 
 int main()
 {

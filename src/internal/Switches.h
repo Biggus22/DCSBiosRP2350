@@ -2,6 +2,7 @@
 #define __DCSBIOS_SWITCHES_H
 
 #include <math.h>
+#include <cstdio>
 #include "pico/stdlib.h"
 #include "aw9523b.h"
 #include "PCF8575.h"
@@ -920,7 +921,7 @@ namespace DcsBios {
 						if (debounceCandidate_ != lastSentState_) {
 							char msgBuffer[3];
 							int8_t mappedValue = (debounceCandidate_ == 0) ? 1 : 0;  // Map physical to game value
-							snprintf(msgBuffer, sizeof(msgBuffer), "%d", mappedValue);
+								std::snprintf(msgBuffer, sizeof(msgBuffer), "%d", mappedValue);
 							if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
 								lastSentState_ = mappedValue;  // Store the game value we sent, not the physical position
 							}

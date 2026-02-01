@@ -102,7 +102,7 @@ bool FrameReceiver::pushByte(uint8_t byte, Frame& outFrame) {
 // ActiveSlaveSet Implementation
 // ============================================================================
 
-ActiveslaveSet::ActiveSlaveSet() {
+ActiveSlaveSet::ActiveSlaveSet() {
     clear();
 }
 

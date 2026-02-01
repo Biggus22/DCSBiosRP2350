@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD 0xcb_helios CACHE STRING "Board type")
 
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
@@ -53,9 +53,11 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
-add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
+# add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
 
 #****** Test Programs *********
 # add_executable(DCSBiosRP2350 test_programs/swarm.cpp)

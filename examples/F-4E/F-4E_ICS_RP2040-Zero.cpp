@@ -14,6 +14,7 @@
 #include "internal/rs485.h"
 #include "hardware/pwm.h"
 #include "internal/ws2812.h"
+#include "hardware/adc.h"
 #define NUM_LEDS 13 // Total number of SK6812 LEDs
 
 WS2812 externalLeds(pio0, 0, 14, false); // Global WS2812 object for external NeoPixels on pin 14
@@ -28,6 +29,21 @@ const uint8_t pltIcsModePins[2] = {8, 9};  // Changed to 2 pins for 3-position s
 DcsBios::Switch3Pos2Pin pltIcsMode("PLT_ICS_MODE", pltIcsModePins[0], pltIcsModePins[1]);
 
 DcsBios::Potentiometer pltIcsIntercomVol("PLT_ICS_INTERCOM_VOL", 27, true, 0, 4095);
+
+static constexpr uint8_t kIcsPotPin = 27;
+static constexpr uint8_t kIcsPotAdcChannel = 1; // GPIO27 -> ADC1
+static constexpr uint32_t kIcsPotResyncMs = 3000;
+static uint32_t g_lastIcsPotResync = 0;
+
+static void resyncIcsPot() {
+    adc_select_input(kIcsPotAdcChannel);
+    uint rawValue = adc_read();
+    unsigned int state = DcsBios::mapInt(rawValue, 0, 4095, 0, 65535);
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%u", state);
+    DcsBios::tryToSendDcsBiosMessage("PLT_ICS_INTERCOM_VOL", buf);
+    DcsBios::tryToSendDcsBiosMessage("PLT_ICS_VOL", buf);
+}
 
 // DCS-BIOS callback function for F-4E console lighting (red)
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
@@ -77,6 +93,8 @@ int main()
     stdio_init_all();                      // Initialize USB CDC
     DcsBios::initHeartbeat(HEARTBEAT_LED); // Initialize heartbeat LED
     sleep_ms(2000);                        // Wait for USB CDC to be ready
+    adc_init();
+    adc_gpio_init(kIcsPotPin);
     externalLeds.begin(NUM_LEDS); // Initialize with 10 pixels
 
     // Power-on Green Flash for 1 second
@@ -128,6 +146,11 @@ int main()
     {
         DcsBios::loop();            // Handle input, output, and LED updates
         DcsBios::updateHeartbeat(); // Update heartbeat LED
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        if (now - g_lastIcsPotResync >= kIcsPotResyncMs) {
+            resyncIcsPot();
+            g_lastIcsPotResync = now;
+        }
         sleep_us(10);
     }
 }

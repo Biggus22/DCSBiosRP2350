@@ -33,15 +33,15 @@ project(DCSBiosRP2350 C CXX ASM)
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
-
-# add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
+# By default we build the main DCSBiOS firmware; uncomment one of the variants if you need an example
+add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
 # add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Demo.cpp)
 # add_executable(DCSBiosRP2350 Fox1_Panel_Switch.cpp)
 
 #******  F-4E Examples *********
- add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/RP2040_Zero_ICS_LED_test.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero_MagTest.cpp)
@@ -125,6 +125,7 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/ws2812.cpp
     src/internal/ht16k33a.cpp
     src/internal/Display.cpp
+    src/internal/WaveshareEpaper213.cpp
     src/internal/pio_i2c.cpp
     src/internal/heartbeat.cpp
     src/internal/DeviceAddress.cpp
@@ -140,4 +141,28 @@ target_sources(DCSBiosRP2350 PRIVATE
     #src/internal/ADS1115.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)
+
+add_executable(WaveshareEpaperDemo examples/WaveshareEpaperDemo.cpp)
+target_link_libraries(WaveshareEpaperDemo PRIVATE
+    pico_stdlib
+    pico_multicore
+    pico_time
+    hardware_adc
+    hardware_i2c
+    hardware_pio
+    hardware_clocks
+    hardware_pwm
+    hardware_watchdog
+    hardware_spi
+    hardware_uart
+    hardware_dma
+    hardware_gpio)
+target_include_directories(WaveshareEpaperDemo PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/src/internal)
+target_sources(WaveshareEpaperDemo PRIVATE
+    src/internal/WaveshareEpaper213.cpp)
+pico_add_extra_outputs(WaveshareEpaperDemo)
 

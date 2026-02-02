@@ -152,6 +152,7 @@ namespace DcsBios {
 #include "internal/RotarySyncingPotentiometer.h"
 #include "internal/Leds.h"
 #include "internal/Display.h"
+#include "internal/WaveshareEpaper213.h"
 #ifndef DCSBIOS_DISABLE_SERVO
 #include "internal/Servos.h"
 #endif

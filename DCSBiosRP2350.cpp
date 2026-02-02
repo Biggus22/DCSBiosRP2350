@@ -1,5 +1,3 @@
-#define PICO_BOARD
-
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"

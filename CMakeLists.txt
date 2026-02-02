@@ -23,10 +23,8 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD 0xcb_helios CACHE STRING "Board type")
-
-
-# Pull in Raspberry Pi Pico SDK (must be before project)
+set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
+# Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
 project(DCSBiosRP2350 C CXX ASM)
@@ -53,8 +51,8 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
-add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
+ add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
 # add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
@@ -83,7 +81,7 @@ pico_enable_stdio_uart(DCSBiosRP2350 0)
 pico_enable_stdio_usb(DCSBiosRP2350 1)
 
 # Enable Arduino RS485 framing compatibility in this example build
-target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
+#target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
 
 # Compile ws2812.pio into ws2812.pio.h
 pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/ws2812.pio

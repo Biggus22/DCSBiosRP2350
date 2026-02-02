@@ -1,13 +1,11 @@
 #ifndef PICO_BOARD
 #define PICO_BOARD
 #endif
-#include "pico/time.h"
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include "pico/stdlib.h"
-#include "pico/multicore.h"
+#include <pico/multicore.h>
 #include "../../src/DcsBios.h"
 #include "../../src/internal/FoxConfig.h"
 #include "../../src/internal/Leds.h"
@@ -23,12 +21,13 @@
 
 
 
+#if PICO_SDK_AVAILABLE
+
 #define NUM_LEDS 17          // Total number of SK6812 LEDs
 #define ANTI_SKID_LED_INDEX (NUM_LEDS - 1)
 
 WS2812 externalLeds(pio0, 0, 0, false); // Global WS2812 object for external NeoPixels on pin 0
 
-static uint8_t g_consoleIntensity = 0;
 static bool g_antiSkidInop = false;
 
 static void applyAntiSkidLed() {
@@ -36,8 +35,8 @@ static void applyAntiSkidLed() {
         // Amber warning indicator
         externalLeds.setPixel(ANTI_SKID_LED_INDEX, externalLeds.rgbw(255, 96, 0, 0));
     } else {
-        // Follow console lighting when not in warning state
-        externalLeds.setPixel(ANTI_SKID_LED_INDEX, externalLeds.rgbw(g_consoleIntensity, 0, 0, 0));
+        // Off when not in warning state
+        externalLeds.setPixel(ANTI_SKID_LED_INDEX, externalLeds.rgbw(0, 0, 0, 0));
     }
     externalLeds.show();
 }
@@ -49,11 +48,10 @@ static void applyAntiSkidLed() {
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
     uint8_t intensity = (uint8_t)((consoleBrightness * 255) / 65535);
 
-    g_consoleIntensity = intensity;
     for (int i = 0; i < ANTI_SKID_LED_INDEX; i++) {
         externalLeds.setPixel(i, externalLeds.rgbw(intensity, 0, 0, 0)); // Red for F-4
     }
-    applyAntiSkidLed();
+    externalLeds.show();
 }
 DcsBios::IntegerBuffer pltIntLightConsoleBuffer(F_4E_PLT_INT_LIGHT_CONSOLE, onPltIntLightConsoleChange);
 
@@ -68,11 +66,10 @@ void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
         brightness = (uint8_t)((consoleBrightness * 255) / 65535);
     }
     
-    g_consoleIntensity = brightness;
     for (int i = 0; i < ANTI_SKID_LED_INDEX; i++) {
         externalLeds.setPixel(i, externalLeds.rgbw(brightness, 0, 0, 0)); // Red for F-14
     }
-    applyAntiSkidLed();
+    externalLeds.show();
 }
 
 // Declare the IntegerBuffer for F-14 console lighting
@@ -157,3 +154,9 @@ int main()
         sleep_us(10);
     }
 }
+#else
+int main()
+{
+    return 0;
+}
+#endif

@@ -2,23 +2,23 @@
     "configurations": [
         {
             "name": "Pico",
+            // Set PICO_SDK_PATH to your Pico SDK root (e.g. C:\Users\j7517\.pico-sdk\sdk\2.2.0)
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/Users/j7517/.pico-sdk/sdk/2.1.1/src/rp2_common/hardware_spi/include",
-                "${userHome}/.pico-sdk/sdk/2.1.1/**"
+                "${env:PICO_SDK_PATH}/src/**",
+                "${userHome}/.pico-sdk/sdk/2.2.0/src/**"
             ],
             "forcedInclude": [
                 "${workspaceFolder}/build/generated/pico_base/pico/config_autogen.h",
-                "${userHome}/.pico-sdk/sdk/2.1.1/src/common/pico_base_headers/include/pico.h"
+                "${env:PICO_SDK_PATH}/src/common/pico_base_headers/include/pico.h",
+                "${userHome}/.pico-sdk/sdk/2.2.0/src/common/pico_base_headers/include/pico.h"
             ],
             "defines": [],
-            "compilerPath": "${userHome}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gcc.exe",
-            "compileCommands": [
-                "${workspaceFolder}/build/compile_commands.json"
-            ],
+            "compilerPath": "C:/Users/j7517/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-g++.exe",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
             "cStandard": "c17",
             "cppStandard": "c++14",
-            "intelliSenseMode": "linux-gcc-arm"
+            "intelliSenseMode": "windows-gcc-arm"
         }
     ],
     "version": 4

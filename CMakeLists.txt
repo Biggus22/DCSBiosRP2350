@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
+set(PICO_BOARD waveshare_rp2040_zero CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -41,7 +41,7 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 Fox1_Panel_Switch.cpp)
 
 #******  F-4E Examples *********
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
+ add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/RP2040_Zero_ICS_LED_test.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero_MagTest.cpp)
@@ -51,7 +51,7 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
- add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********

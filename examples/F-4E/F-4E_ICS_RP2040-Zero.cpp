@@ -22,28 +22,13 @@ WS2812 externalLeds(pio0, 0, 14, false); // Global WS2812 object for external Ne
 uart_inst_t *rs485_uart = uart0;
 
 // DCS-BIOS F-4E INPUT FUNCTIONS HERE
-const uint8_t pltIcsAmplifierPins[3] = {5, 4, 3};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmplifier("PLT_ICS_AMPLIFIER", pltIcsAmplifierPins,
-0x2a00, 0x0300, 8, 50);
+//const uint8_t pltIcsAmplifierPins[3] = {5, 4, 3};
+//DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmplifier("PLT_ICS_AMPLIFIER", pltIcsAmplifierPins,
+//0x2a00, 0x0300, 8, 50);
 const uint8_t pltIcsModePins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
 DcsBios::Switch3Pos2Pin pltIcsMode("PLT_ICS_MODE", pltIcsModePins[0], pltIcsModePins[1]);
 
 DcsBios::Potentiometer pltIcsIntercomVol("PLT_ICS_INTERCOM_VOL", 27, true, 0, 4095);
-
-static constexpr uint8_t kIcsPotPin = 27;
-static constexpr uint8_t kIcsPotAdcChannel = 1; // GPIO27 -> ADC1
-static constexpr uint32_t kIcsPotResyncMs = 3000;
-static uint32_t g_lastIcsPotResync = 0;
-
-static void resyncIcsPot() {
-    adc_select_input(kIcsPotAdcChannel);
-    uint rawValue = adc_read();
-    unsigned int state = DcsBios::mapInt(rawValue, 0, 4095, 0, 65535);
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%u", state);
-    DcsBios::tryToSendDcsBiosMessage("PLT_ICS_INTERCOM_VOL", buf);
-    DcsBios::tryToSendDcsBiosMessage("PLT_ICS_VOL", buf);
-}
 
 // DCS-BIOS callback function for F-4E console lighting (red)
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
@@ -57,9 +42,9 @@ void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
 DcsBios::IntegerBuffer pltIntLightConsoleBuffer(F_4E_PLT_INT_LIGHT_CONSOLE, onPltIntLightConsoleChange);
 
 // DCS-BIOS F-14A/B FUNCTIONS HERE
-const uint8_t pltIcsAmpSelPins[3] = {5, 4, 3};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmpSel("PLT_ICS_AMP_SEL", pltIcsAmpSelPins,
-0x1234, 0x0600, 9, 50);
+//const uint8_t pltIcsAmpSelPins[3] = {5, 4, 3};
+//DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmpSel("PLT_ICS_AMP_SEL", pltIcsAmpSelPins,
+//0x1234, 0x0600, 9, 50);
 const uint8_t pltIcsFuncSelPins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
 DcsBios::Switch3Pos2Pin pltIcsFuncSel("PLT_ICS_FUNC_SEL", pltIcsFuncSelPins[0], pltIcsFuncSelPins[1]);
 
@@ -94,7 +79,7 @@ int main()
     DcsBios::initHeartbeat(HEARTBEAT_LED); // Initialize heartbeat LED
     sleep_ms(2000);                        // Wait for USB CDC to be ready
     adc_init();
-    adc_gpio_init(kIcsPotPin);
+    adc_gpio_init(27);
     externalLeds.begin(NUM_LEDS); // Initialize with 10 pixels
 
     // Power-on Green Flash for 1 second
@@ -146,11 +131,6 @@ int main()
     {
         DcsBios::loop();            // Handle input, output, and LED updates
         DcsBios::updateHeartbeat(); // Update heartbeat LED
-        uint32_t now = to_ms_since_boot(get_absolute_time());
-        if (now - g_lastIcsPotResync >= kIcsPotResyncMs) {
-            resyncIcsPot();
-            g_lastIcsPotResync = now;
-        }
         sleep_us(10);
     }
 }

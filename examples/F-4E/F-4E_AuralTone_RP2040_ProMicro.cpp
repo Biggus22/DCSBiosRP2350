@@ -29,21 +29,6 @@ uart_inst_t *rs485_uart = uart0;
 
 DcsBios::Potentiometer pltAoaAuralTone("PLT_AOA_AURAL_TONE", 28);
 
-static constexpr uint8_t kAuralTonePin = 28;
-static constexpr uint8_t kAuralToneAdcChannel = 2; // GPIO28 -> ADC2
-static constexpr uint32_t kAuralToneResyncMs = 3000;
-static uint32_t g_lastAuralToneResync = 0;
-
-static void resyncAuralTonePot() {
-    adc_select_input(kAuralToneAdcChannel);
-    uint rawValue = adc_read();
-    unsigned int state = DcsBios::mapInt(rawValue, 0, 4095, 0, 65535);
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%u", state);
-    DcsBios::tryToSendDcsBiosMessage("PLT_AOA_AURAL_TONE", buf);
-}
-
-
 // DCS-BIOS callback function for F-4E console lighting (red)
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
     uint8_t intensity = (uint8_t)((consoleBrightness * 255) / 65535);
@@ -83,7 +68,7 @@ int main()
     sleep_ms(2000);                        // Wait for USB CDC to be ready
 
     adc_init();
-    adc_gpio_init(kAuralTonePin);
+    adc_gpio_init(28);
 
     externalLeds.begin(NUM_LEDS);
 
@@ -137,11 +122,6 @@ int main()
     {
         DcsBios::loop();            // Handle input, output, and LED updates
         DcsBios::updateHeartbeat(); // Update heartbeat LED
-        uint32_t now = to_ms_since_boot(get_absolute_time());
-        if (now - g_lastAuralToneResync >= kAuralToneResyncMs) {
-            resyncAuralTonePot();
-            g_lastAuralToneResync = now;
-        }
         sleep_us(10);
     }
 }

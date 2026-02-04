@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <pico/multicore.h>
+#include "pico/multicore.h"
 #include "../../src/DcsBios.h"
 #include "../../src/internal/FoxConfig.h"
 #include "../../src/internal/Leds.h"
@@ -20,8 +20,6 @@
 #include "hardware/spi.h"
 
 
-
-#if PICO_SDK_AVAILABLE
 
 #define NUM_LEDS 17          // Total number of SK6812 LEDs
 #define ANTI_SKID_LED_INDEX (NUM_LEDS - 1)
@@ -88,11 +86,11 @@ DcsBios::ServoOutput pltO2Liters(0x2b36, 11, 544, 2400);
 DcsBios::ServoOutput pltO2Pressure(0x2b34, 13, 544, 2400);
 
 // O2 mixture switch (2-position) on GPIO pins 12 and 10
-const uint8_t pltO2MixturePins[2] = {10, 12};
+const uint8_t pltO2MixturePins[2] = {12, 10};
 DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltO2Mixture("PLT_O2_MIXTURE", pltO2MixturePins);
 
 // O2 supply switch (2-position) on GPIO pin 14
-DcsBios::Switch2Pos pltO2Supply("PLT_O2_SUPPLY", 14);
+DcsBios::Switch2Pos pltO2Supply("PLT_O2_SUPPLY", 14, false);
 
 int main()
 {
@@ -154,9 +152,3 @@ int main()
         sleep_us(10);
     }
 }
-#else
-int main()
-{
-    return 0;
-}
-#endif

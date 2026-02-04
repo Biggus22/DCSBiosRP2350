@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD waveshare_rp2040_zero CACHE STRING "Board type")
+set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -32,9 +32,13 @@ project(DCSBiosRP2350 C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+# Optionally build the Waveshare 2.13" e-paper driver and demo
+# Set to ON to include the driver source and demo target
+option(BUILD_WAVESHARE_EPAPER "Build Waveshare e-paper driver and demo" OFF)
+
 # Add executable. Default name is the project name, version 0.1
 # By default we build the main DCSBiOS firmware; uncomment one of the variants if you need an example
-add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
+# $add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
 # add_executable(DCSBiosRP2350 Fox1_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Panel1.cpp)
 # add_executable(DCSBiosRP2350 Fox2_Demo.cpp)
@@ -51,7 +55,7 @@ add_executable(DCSBiosRP2350 DCSBiosRP2350.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
-#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
@@ -125,7 +129,7 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/ws2812.cpp
     src/internal/ht16k33a.cpp
     src/internal/Display.cpp
-    src/internal/WaveshareEpaper213.cpp
+    # src/internal/WaveshareEpaper213.cpp  # optional: controlled by BUILD_WAVESHARE_EPAPER
     src/internal/pio_i2c.cpp
     src/internal/heartbeat.cpp
     src/internal/DeviceAddress.cpp
@@ -142,27 +146,41 @@ target_sources(DCSBiosRP2350 PRIVATE
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 
-add_executable(WaveshareEpaperDemo examples/WaveshareEpaperDemo.cpp)
-target_link_libraries(WaveshareEpaperDemo PRIVATE
-    pico_stdlib
-    pico_multicore
-    pico_time
-    hardware_adc
-    hardware_i2c
-    hardware_pio
-    hardware_clocks
-    hardware_pwm
-    hardware_watchdog
-    hardware_spi
-    hardware_uart
-    hardware_dma
-    hardware_gpio)
-target_include_directories(WaveshareEpaperDemo PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/include
-    ${CMAKE_CURRENT_LIST_DIR}/src
-    ${CMAKE_CURRENT_LIST_DIR}/src/internal)
-target_sources(WaveshareEpaperDemo PRIVATE
-    src/internal/WaveshareEpaper213.cpp)
-pico_add_extra_outputs(WaveshareEpaperDemo)
+if(BUILD_WAVESHARE_EPAPER)
+    # Include the Waveshare driver in the main firmware when enabled
+    target_sources(DCSBiosRP2350 PRIVATE src/internal/WaveshareEpaper213.cpp)
+else()
+    # The Waveshare driver is optional. To compile it, set:
+    #   -DBUILD_WAVESHARE_EPAPER=ON
+endif()
+
+if(BUILD_WAVESHARE_EPAPER)
+    add_executable(WaveshareEpaperDemo examples/WaveshareEpaperDemo.cpp)
+    target_link_libraries(WaveshareEpaperDemo PRIVATE
+        pico_stdlib
+        pico_multicore
+        pico_time
+        hardware_adc
+        hardware_i2c
+        hardware_pio
+        hardware_clocks
+        hardware_pwm
+        hardware_watchdog
+        hardware_spi
+        hardware_uart
+        hardware_dma
+        hardware_gpio)
+    target_include_directories(WaveshareEpaperDemo PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/src/internal)
+    target_sources(WaveshareEpaperDemo PRIVATE
+        src/internal/WaveshareEpaper213.cpp)
+    pico_add_extra_outputs(WaveshareEpaperDemo)
+else()
+    # Waveshare e-paper demo target is disabled by default.
+    # To enable, set BUILD_WAVESHARE_EPAPER to ON.
+    # add_executable(WaveshareEpaperDemo examples/WaveshareEpaperDemo.cpp)
+endif()
 

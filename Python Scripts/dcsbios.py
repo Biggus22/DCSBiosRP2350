@@ -3,6 +3,7 @@ import struct
 import serial
 import threading
 import time
+from dcsb_parser import DcsbiosFramer
 
 # === CONFIGURATION ===
 DCS_PC_IP = "192.168.1.2" # Change to the IP address of the PC running DCS
@@ -186,26 +187,32 @@ def udp_to_serial():
     while True:
         try:
             data, addr = udp_sock.recvfrom(1024)
-
+            # Ignore packets that are not from configured DCS PC
             if addr[0] != DCS_PC_IP:
                 continue
 
-            if not is_dcsbios_export_packet(data):
-                continue
-
-            for device_entry in active_serial_ports:
-                ser = device_entry["port"]
-                device_name = device_entry["name"]
-                if ser and ser.is_open:
-                    try:
-                        ser.write(data)
-                    except Exception as e:
-                        print(f"[{device_name} SERIAL WRITE ERROR for UDP data] {e}")
+            # Feed incoming UDP bytes into the framer which will call our
+            # callback for each complete DCS-BIOS framed export packet.
+            framer.feed(data)
                         # You might want to remove this port from active_serial_ports
                         # or attempt to re-establish connection here.
         except Exception as e:
             print(f"[UDP RECEPTION ERROR] {e}")
             time.sleep(1)
+
+# --- DCS-BIOS framer callback ---
+def on_dcs_packet(packet: bytes, ts: float):
+    # forward framed packet to all active serial ports
+    for device_entry in active_serial_ports:
+        ser = device_entry["port"]
+        if ser and ser.is_open:
+            try:
+                ser.write(packet)
+            except Exception as e:
+                print(f"[{device_entry['name']}] write error: {e}")
+
+# Instantiate the framer used by udp_to_serial()
+framer = DcsbiosFramer(on_dcs_packet)
 
 # === START THREADS ===
 udp_thread = threading.Thread(target=udp_to_serial, daemon=True)

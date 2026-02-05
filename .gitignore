@@ -266,3 +266,5 @@ build/pico-sdk/src/rp2_common/pico_time_adapter/cmake_install.cmake
 build/pico-sdk/src/rp2_common/pico_unique_id/cmake_install.cmake
 build/pico-sdk/src/rp2_common/tinyusb/cmake_install.cmake
 build/pico-sdk/tools/cmake_install.cmake
+DCSBiosPi/
+DCSBiosPi_repo/

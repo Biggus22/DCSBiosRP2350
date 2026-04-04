@@ -14,7 +14,7 @@ namespace DcsBios {
 		EIGHT_STEPS_PER_DETENT = 8,
 	};
 
-	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, StepsPerDetent stepsPerDetent = FOUR_STEPS_PER_DETENT>
+	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, StepsPerDetent stepsPerDetent = FOUR_STEPS_PER_DETENT, unsigned long minEventIntervalMs = 20>
 	class RotaryEncoderT : PollingInput, public ResettableInput {
 	private:
 		const char* msg_;
@@ -41,18 +41,24 @@ namespace DcsBios {
 
 		void pollInput() {
 			uint32_t now = to_ms_since_boot(get_absolute_time());
-			if (now - lastUpdate_ < 20) return;  // Throttle to one event every 20ms
+			if (now - lastUpdate_ < minEventIntervalMs) return;  // Per-instance event filter interval
 			lastUpdate_ = now;
-		
+
 			char state = readState();
-			switch (lastState_) {
-				case 0: if (state == 2) delta_--; if (state == 1) delta_++; break;
-				case 1: if (state == 0) delta_--; if (state == 3) delta_++; break;
-				case 2: if (state == 3) delta_--; if (state == 0) delta_++; break;
-				case 3: if (state == 1) delta_--; if (state == 2) delta_++; break;
-			}
+			if (state == lastState_) return;
+
+			// Gray-code transition table that ignores invalid bounce transitions.
+			static const signed char transitionTable[16] = {
+				0, -1,  1,  0,
+				1,  0,  0, -1,
+				-1, 0,  0,  1,
+				0,  1, -1,  0
+			};
+			signed char movement = transitionTable[((lastState_ & 0x03) << 2) | (state & 0x03)];
 			lastState_ = state;
-		
+			if (movement == 0) return;
+			delta_ += movement;
+
 			if (delta_ >= stepsPerDetent) {
 				if (tryToSendDcsBiosMessage(msg_, incArg_)) delta_ -= stepsPerDetent;
 			}
@@ -89,10 +95,10 @@ namespace DcsBios {
 		void resetThisState() { resetState(); }
 	};
 	typedef RotaryEncoderT<> RotaryEncoder;
-	typedef RotaryEncoderT<DcsBios::ONE_STEP_PER_DETENT> RotaryEncoder1Step;
-	typedef RotaryEncoderT<DcsBios::TWO_STEPS_PER_DETENT> RotaryEncoder2Step;
-	typedef RotaryEncoderT<DcsBios::FOUR_STEPS_PER_DETENT> RotaryEncoder4Step;
-	typedef RotaryEncoderT<DcsBios::EIGHT_STEPS_PER_DETENT> RotaryEncoder8Step;
+	typedef RotaryEncoderT<POLL_EVERY_TIME, DcsBios::ONE_STEP_PER_DETENT> RotaryEncoder1Step;
+	typedef RotaryEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT> RotaryEncoder2Step;
+	typedef RotaryEncoderT<POLL_EVERY_TIME, DcsBios::FOUR_STEPS_PER_DETENT> RotaryEncoder4Step;
+	typedef RotaryEncoderT<POLL_EVERY_TIME, DcsBios::EIGHT_STEPS_PER_DETENT> RotaryEncoder8Step;
 
 	// You can apply the same pattern to RotaryAcceleratedEncoderT when needed.
 

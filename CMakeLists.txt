@@ -15,15 +15,15 @@ if(WIN32)
 else()
     set(USERHOME $ENV{HOME})
 endif()
-set(sdkVersion 2.1.1)
+set(sdkVersion 2.2.0)
 set(toolchainVersion 14_2_Rel1)
-set(picotoolVersion 2.1.1)
+set(picotoolVersion 2.2.0-a4)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD waveshare_rp2040_zero CACHE STRING "Board type")
+set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -41,17 +41,20 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 Fox1_Panel_Switch.cpp)
 
 #******  F-4E Examples *********
- add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/RP2040_Zero_ICS_LED_test.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AFCS_RP2040-Zero_MagTest.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ACFS_RP2040_Pico_testing_light.cpp)
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Eng_Start_RP2040_ProMicro.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AuralTone_RP2040_ProMicro.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_EngStart_RP2040_ProMicro_testing_light.cpp)
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VORILS_RP2350-Zero.cpp)
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Fuel_RP2040-Zero.cpp)
-#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
-#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)
+# add_executable(DCSBiosRP2350 test_programs/DC_motor_MX1508_test.cpp)
+add_executable(DCSBiosRP2350 test_programs/servo_sweep_test.cpp)
+#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
+ #add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
+# add_executable(DCSBiosRP2350 test_programs/epaper_test.cpp)
+#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Utility_RP2350-Zero.cpp)  # disabled — building epaper_test
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
@@ -67,7 +70,9 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 test_programs/RP2040_Zero_onboard_RGB_LED_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/MCP23S17_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/rs485_arduino_framing_test.cpp)
-# add_executable(DCSBiosRP2350 test_programs/X27-168_stepper_RP2350-Zero.cpp)
+# add_executable(DCSBiosRP2350 test_programs/28BYJ48_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
 
 
 
@@ -82,10 +87,13 @@ pico_enable_stdio_usb(DCSBiosRP2350 1)
 
 # Enable Arduino RS485 framing compatibility in this example build
 #target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
+# X27 step resolution (set to 1080 for full 360-degree travel)
+target_compile_definitions(DCSBiosRP2350 PRIVATE X27_STEPS_PER_REV=1080)
 
 # Compile ws2812.pio into ws2812.pio.h
 pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/ws2812.pio
     ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/i2c.pio
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_programs/stepper.pio
 )
 
 #pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/st7789.pio
@@ -137,6 +145,10 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/Mcp23s17.cpp
     src/internal/PCF8575.cpp
     src/internal/X27_stepper.cpp
+    src/internal/EPaper213.cpp
+    src/internal/BYJ48_stepper.cpp
+    src/internal/ST7789.cpp
+    src/internal/ST7789_numbers.cpp
     #src/internal/ADS1115.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)

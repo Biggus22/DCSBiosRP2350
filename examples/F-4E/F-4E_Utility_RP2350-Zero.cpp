@@ -28,6 +28,66 @@ WS2812 externalLeds(pio0, 0, 0, false); // Global WS2812 object for external Neo
 
 static bool g_antiSkidInop = false;
 
+static uint16_t pulseWidthUsToPwmLevel(uint32_t us) {
+    // 20 ms servo period with wrap 39062 -> approximately 1.95 ticks per microsecond.
+    uint32_t level = (us * 39062) / 20000;
+    if (level > 39062) {
+        level = 39062;
+    }
+    return (uint16_t)level;
+}
+
+static void initServoPwmPin(uint pin) {
+    gpio_set_function(pin, GPIO_FUNC_PWM);
+    uint slice = pwm_gpio_to_slice_num(pin);
+
+    pwm_config config = pwm_get_default_config();
+    pwm_config_set_clkdiv(&config, 64.f);
+    pwm_config_set_wrap(&config, 39062);
+    pwm_init(slice, &config, true);
+}
+
+static void setServoPulseUs(uint pin, uint16_t pulseWidthUs) {
+    pwm_set_gpio_level(pin, pulseWidthUsToPwmLevel(pulseWidthUs));
+}
+
+static void runServoSweepIfEnabled(bool enabled, const uint8_t* pins, size_t pinCount,
+                                   uint16_t minUs, uint16_t maxUs, uint16_t stepUs,
+                                   uint16_t stepDelayMs) {
+    if (!enabled || pins == nullptr || pinCount == 0 || stepUs == 0 || minUs >= maxUs) {
+        return;
+    }
+
+    for (size_t i = 0; i < pinCount; i++) {
+        initServoPwmPin(pins[i]);
+        setServoPulseUs(pins[i], minUs);
+    }
+    sleep_ms(250);
+
+    for (uint16_t us = minUs; us <= maxUs; us = (uint16_t)(us + stepUs)) {
+        for (size_t i = 0; i < pinCount; i++) {
+            setServoPulseUs(pins[i], us);
+        }
+        sleep_ms(stepDelayMs);
+        if ((uint16_t)(us + stepUs) < us) {
+            break;
+        }
+    }
+
+    for (int us = (int)maxUs; us >= (int)minUs; us -= (int)stepUs) {
+        for (size_t i = 0; i < pinCount; i++) {
+            setServoPulseUs(pins[i], (uint16_t)us);
+        }
+        sleep_ms(stepDelayMs);
+    }
+
+    uint16_t midUs = (uint16_t)(minUs + ((maxUs - minUs) / 2));
+    for (size_t i = 0; i < pinCount; i++) {
+        setServoPulseUs(pins[i], midUs);
+    }
+    sleep_ms(150);
+}
+
 static void applyAntiSkidLed() {
     if (g_antiSkidInop) {
         // Amber warning indicator
@@ -35,6 +95,21 @@ static void applyAntiSkidLed() {
     } else {
         // Off when not in warning state
         externalLeds.setPixel(ANTI_SKID_LED_INDEX, externalLeds.rgbw(0, 0, 0, 0));
+    }
+    externalLeds.show();
+}
+
+static void runStartupSweepIfEnabled(bool enabled, uint32_t color, uint16_t stepDelayMs) {
+    if (!enabled) {
+        return;
+    }
+
+    externalLeds.clear();
+    for (int i = 0; i < ANTI_SKID_LED_INDEX; i++) {
+        externalLeds.setPixel(i, color);
+        externalLeds.show();
+        sleep_ms(stepDelayMs);
+        externalLeds.setPixel(i, externalLeds.rgbw(0, 0, 0, 0));
     }
     externalLeds.show();
 }
@@ -84,13 +159,16 @@ DcsBios::IntegerBuffer pltGearAntiSkidInopBuffer(0x2ac0, 0x2000, 13, onPltGearAn
 DcsBios::ServoOutput pltO2Flow(0x2b32, 9, 620, 2800);
 DcsBios::ServoOutput pltO2Liters(0x2b36, 11, 544, 2400);
 DcsBios::ServoOutput pltO2Pressure(0x2b34, 13, 544, 2400);
+const uint8_t o2ServoPins[3] = {9, 11, 13};
 
 // O2 mixture switch (2-position) on GPIO pins 12 and 10
 const uint8_t pltO2MixturePins[2] = {12, 10};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltO2Mixture("PLT_O2_MIXTURE", pltO2MixturePins);
+DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 2> pltO2Mixture("PLT_O2_MIXTURE", pltO2MixturePins,
+    F_4E_PLT_O2_MIXTURE, 50);
 
 // O2 supply switch (2-position) on GPIO pin 14
-DcsBios::Switch2Pos pltO2Supply("PLT_O2_SUPPLY", 14, false);
+DcsBios::SyncingSwitch2PosT<POLL_EVERY_TIME> pltO2Supply("PLT_O2_SUPPLY", 14,
+    F_4E_PLT_O2_SUPPLY);
 
 int main()
 {
@@ -99,6 +177,14 @@ int main()
     sleep_ms(2000);                        // Wait for USB CDC to be ready
 
     externalLeds.begin(NUM_LEDS);
+
+    // Set true to run an initial servo sweep before entering normal DCS-BIOS control.
+    const bool enableStartupServoSweep = true;
+    runServoSweepIfEnabled(enableStartupServoSweep, o2ServoPins, 3, 620, 2400, 20, 8);
+
+    // Set true to run the startup sweep before the static power-on flash.
+    const bool enableStartupSweep = true;
+    runStartupSweepIfEnabled(enableStartupSweep, externalLeds.rgbw(0, 201, 0, 0), 40);
 
     // Power-on Green Flash for 1 second
     for (int i = 0; i < NUM_LEDS; i++)

@@ -11,6 +11,28 @@
 #include "hardware/timer.h"
 #include "X27_stepper.h"
 
+static inline bool x27_vid_has_reset_pin(const x27_motor_t *motor) {
+    // Preserve legacy behavior where pin_reset == 0 means "unused/tied high".
+    return motor && (motor->config.vid6606.pin_reset != 0);
+}
+
+static inline void x27_vid_set_outputs_enabled(x27_motor_t *motor, bool enabled) {
+    if (!motor || motor->driver_type != X27_DRIVER_VID6606) return;
+    if (!x27_vid_has_reset_pin(motor)) {
+        motor->vid_outputs_enabled = true;
+        return;
+    }
+
+    if (enabled) {
+        gpio_put(motor->config.vid6606.pin_reset, 1);
+        sleep_us(X27_VID6606_RESET_RECOVERY_US);
+        motor->vid_outputs_enabled = true;
+    } else {
+        gpio_put(motor->config.vid6606.pin_reset, 0);
+        motor->vid_outputs_enabled = false;
+    }
+}
+
 // Full step sequence (4 steps per cycle)
 static const uint8_t FULL_STEP_SEQUENCE[4][4] = {
     {1, 0, 1, 0},  // Step 0
@@ -55,7 +77,58 @@ static void x27_set_coils_gpio(x27_motor_t *motor, uint8_t c1a, uint8_t c1b, uin
     gpio_put(motor->config.gpio.pin_coil2_b, c2b);
 }
 
+static uint32_t x27_steps_per_rev_for_mode(x27_step_mode_t mode) {
+    uint32_t steps = X27_STEPS_PER_REV;
+    switch (mode) {
+        case X27_MODE_FULL_STEP:
+            // Empirical scaling for this GPIO stepping table implementation.
+            // FULL_STEP commands should map close to expected travel in gauges.
+            steps = (X27_STEPS_PER_REV * 2) / 3;
+            break;
+        case X27_MODE_HALF_STEP:
+            steps = X27_STEPS_PER_REV;
+            break;
+        case X27_MODE_MICRO_STEP:
+        default:
+            steps = X27_STEPS_PER_REV;
+            break;
+    }
+    return (steps == 0) ? 1 : steps;
+}
+
+static uint32_t x27_ramped_delay_us(const x27_motor_t *motor) {
+    if (!motor) return X27_MIN_STEP_US;
+
+    int32_t remaining = motor->target_position - motor->current_position;
+    if (remaining < 0) remaining = -remaining;
+
+    const uint32_t ramp_steps = 36;
+    uint32_t cruise_delay = motor->step_delay_us;
+    uint32_t max_extra_delay = cruise_delay;
+
+    uint32_t accel_phase = 0;
+    if (motor->ramp_steps_taken < ramp_steps) {
+        accel_phase = ramp_steps - motor->ramp_steps_taken;
+    }
+
+    uint32_t decel_phase = 0;
+    if ((uint32_t)remaining < ramp_steps) {
+        decel_phase = ramp_steps - (uint32_t)remaining;
+    }
+
+    uint32_t phase = (accel_phase > decel_phase) ? accel_phase : decel_phase;
+    uint32_t delay = cruise_delay + (max_extra_delay * phase) / ramp_steps;
+    if (delay < X27_MIN_STEP_US) delay = X27_MIN_STEP_US;
+    return delay;
+}
+
 static void x27_step(x27_motor_t *motor, int8_t direction) {
+    int8_t logical_direction = direction;
+    int8_t physical_direction = direction;
+    if (motor->direction_inverted) {
+        physical_direction = -physical_direction;
+    }
+
     if (motor->driver_type == X27_DRIVER_GPIO) {
         // Direct GPIO: manually control coil sequence
         const uint8_t (*sequence)[4];
@@ -79,7 +152,7 @@ static void x27_step(x27_motor_t *motor, int8_t direction) {
         }
         
         // Update step index
-        if (direction > 0) {
+        if (physical_direction > 0) {
             motor->current_step_index = (motor->current_step_index + 1) % seq_len;
         } else {
             motor->current_step_index = (motor->current_step_index + seq_len - 1) % seq_len;
@@ -95,19 +168,23 @@ static void x27_step(x27_motor_t *motor, int8_t direction) {
         
     } else {
         // VID6606/STI6606: use step/direction interface
+        if (!motor->vid_outputs_enabled) {
+            x27_vid_set_outputs_enabled(motor, true);
+        }
+
         // Set direction
-        gpio_put(motor->config.vid6606.pin_dir, direction > 0 ? 1 : 0);
-        sleep_us(1); // Setup time (100ns min per datasheet)
+        gpio_put(motor->config.vid6606.pin_dir, physical_direction > 0 ? 1 : 0);
+        sleep_us(X27_VID6606_DIR_SETUP_US);
         
         // Generate step pulse (min 450ns high per datasheet)
         gpio_put(motor->config.vid6606.pin_step, 1);
-        sleep_us(1);
+        sleep_us(X27_VID6606_STEP_HIGH_US);
         gpio_put(motor->config.vid6606.pin_step, 0);
-        sleep_us(1);
+        sleep_us(X27_VID6606_STEP_LOW_US);
     }
     
     // Update position
-    if (direction > 0) {
+    if (logical_direction > 0) {
         motor->current_position++;
     } else {
         motor->current_position--;
@@ -117,13 +194,25 @@ static void x27_step(x27_motor_t *motor, int8_t direction) {
 // Public API implementation
 
 bool x27_init_gpio(x27_motor_t *motor, const x27_gpio_config_t *config, x27_step_mode_t mode) {
+    if (!motor || !config) return false;
+
     motor->driver_type = X27_DRIVER_GPIO;
     motor->config.gpio = *config;
     motor->step_mode = mode;
     motor->current_position = 0;
     motor->target_position = 0;
     motor->step_delay_us = 2000;
+    motor->last_step_time_us = time_us_64();
     motor->current_step_index = 0;
+    motor->direction_inverted = false;
+    motor->vid_outputs_enabled = true;
+    motor->ramp_last_target_position = 0;
+    motor->ramp_last_direction = 0;
+    motor->ramp_steps_taken = 0;
+    motor->ramp_active = false;
+    motor->homing_pin = -1;
+    motor->homing_active_high = false;
+    motor->homing_configured = false;
     
     // Initialize GPIO pins
     gpio_init(config->pin_coil1_a);
@@ -141,13 +230,26 @@ bool x27_init_gpio(x27_motor_t *motor, const x27_gpio_config_t *config, x27_step
 }
 
 bool x27_init_vid6606(x27_motor_t *motor, const x27_vid6606_config_t *config, x27_step_mode_t mode) {
+    if (!motor || !config) return false;
+    if (config->pin_step == config->pin_dir) return false;
+
     motor->driver_type = X27_DRIVER_VID6606;
     motor->config.vid6606 = *config;
     motor->step_mode = mode;
     motor->current_position = 0;
     motor->target_position = 0;
     motor->step_delay_us = 2000;
+    motor->last_step_time_us = time_us_64();
     motor->current_step_index = 0;
+    motor->direction_inverted = false;
+    motor->vid_outputs_enabled = false;
+    motor->ramp_last_target_position = 0;
+    motor->ramp_last_direction = 0;
+    motor->ramp_steps_taken = 0;
+    motor->ramp_active = false;
+    motor->homing_pin = -1;
+    motor->homing_active_high = false;
+    motor->homing_configured = false;
     
     // Initialize step and direction pins
     gpio_init(config->pin_step);
@@ -168,10 +270,65 @@ bool x27_init_vid6606(x27_motor_t *motor, const x27_vid6606_config_t *config, x2
         gpio_put(config->pin_reset, 0);
         sleep_ms(1);
         gpio_put(config->pin_reset, 1);
+        sleep_us(X27_VID6606_RESET_RECOVERY_US);
+        motor->vid_outputs_enabled = true;
+    } else {
+        motor->vid_outputs_enabled = true;
     }
     
     motor->initialized = true;
     return true;
+}
+
+bool x27_config_homing_sensor(x27_motor_t *motor, int pin, bool active_high, bool pull_up) {
+    if (!motor) return false;
+    motor->homing_pin = pin;
+    motor->homing_active_high = active_high;
+    motor->homing_configured = true;
+
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+    if (pull_up) {
+        gpio_pull_up(pin);
+    } else {
+        gpio_pull_down(pin);
+    }
+    return true;
+}
+
+bool x27_home_with_sensor(x27_motor_t *motor, int8_t dir, uint32_t max_steps) {
+    if (!motor || !motor->initialized || !motor->homing_configured) return false;
+    if (dir == 0) dir = -1; // default search direction
+
+    uint32_t steps = 0;
+    while (steps < max_steps) {
+        // Check sensor
+        int val = gpio_get(motor->homing_pin);
+        bool triggered = motor->homing_active_high ? (val != 0) : (val == 0);
+        if (triggered) {
+            motor->current_position = 0;
+            return true;
+        }
+
+        x27_step(motor, dir);
+        busy_wait_us(motor->step_delay_us);
+        steps++;
+    }
+    return false;
+}
+
+void x27_home_to_stop(x27_motor_t *motor, int8_t dir, uint32_t max_steps) {
+    if (!motor || !motor->initialized) return;
+    if (dir == 0) dir = -1;
+    uint32_t steps = 0;
+    uint32_t limit = (max_steps == 0) ? (uint32_t)X27_MAX_POSITION : max_steps;
+    while (steps < limit) {
+        x27_step(motor, dir);
+        busy_wait_us(motor->step_delay_us);
+        steps++;
+    }
+    // At endpoint, set zero
+    motor->current_position = 0;
 }
 
 void x27_home(x27_motor_t *motor) {
@@ -183,33 +340,76 @@ void x27_home(x27_motor_t *motor) {
 }
 
 void x27_set_position(x27_motor_t *motor, int32_t position) {
+    if (!motor) return;
     if (position < 0) position = 0;
     if (position > X27_MAX_POSITION) position = X27_MAX_POSITION;
     motor->target_position = position;
 }
 
 void x27_set_angle(x27_motor_t *motor, float angle) {
+    if (!motor) return;
     if (angle < 0.0f) angle = 0.0f;
-    if (angle > 315.0f) angle = 315.0f;
-    int32_t position = (int32_t)(angle / X27_STEP_ANGLE);
+    if (angle > 360.0f) angle = 360.0f;
+    uint32_t steps_per_rev = x27_get_effective_steps_per_rev(motor);
+    int32_t position = (int32_t)((angle * (float)steps_per_rev) / 360.0f + 0.5f);
     x27_set_position(motor, position);
 }
 
+uint32_t x27_get_effective_steps_per_rev(const x27_motor_t *motor) {
+    if (!motor) return x27_steps_per_rev_for_mode(X27_MODE_MICRO_STEP);
+    return x27_steps_per_rev_for_mode(motor->step_mode);
+}
+
+float x27_get_effective_step_angle(const x27_motor_t *motor) {
+    uint32_t steps_per_rev = x27_get_effective_steps_per_rev(motor);
+    return 360.0f / (float)steps_per_rev;
+}
+
+float x27_get_angle(const x27_motor_t *motor) {
+    if (!motor) return 0.0f;
+    return (float)motor->current_position * x27_get_effective_step_angle(motor);
+}
+
 bool x27_update(x27_motor_t *motor) {
-    static uint64_t last_step_time = 0;
-    
-    if (motor->current_position == motor->target_position) {
+    if (!motor || !motor->initialized) {
         return false;
     }
     
+    if (motor->current_position == motor->target_position) {
+        motor->ramp_active = false;
+        motor->ramp_steps_taken = 0;
+        motor->ramp_last_direction = 0;
+        motor->ramp_last_target_position = motor->target_position;
+        return false;
+    }
+
+    int8_t direction = (motor->target_position > motor->current_position) ? 1 : -1;
+    bool target_changed = (motor->target_position != motor->ramp_last_target_position);
+    bool direction_changed = (direction != motor->ramp_last_direction);
+    if (!motor->ramp_active || target_changed || direction_changed) {
+        motor->ramp_active = true;
+        motor->ramp_steps_taken = 0;
+        motor->ramp_last_target_position = motor->target_position;
+        motor->ramp_last_direction = direction;
+    }
+    
     uint64_t now = time_us_64();
-    if (now - last_step_time < motor->step_delay_us) {
+    if (motor->last_step_time_us == 0) {
+        motor->last_step_time_us = now;
+        return true;
+    }
+    uint32_t dynamic_delay_us = x27_ramped_delay_us(motor);
+    if (now - motor->last_step_time_us < dynamic_delay_us) {
         return true;
     }
     
-    last_step_time = now;
-    int8_t direction = (motor->target_position > motor->current_position) ? 1 : -1;
+    motor->last_step_time_us = now;
     x27_step(motor, direction);
+    if (motor->ramp_steps_taken < 0xffffffffu) {
+        motor->ramp_steps_taken++;
+    }
+    motor->ramp_last_target_position = motor->target_position;
+    motor->ramp_last_direction = direction;
     
     return motor->current_position != motor->target_position;
 }
@@ -221,25 +421,39 @@ void x27_wait_complete(x27_motor_t *motor) {
 }
 
 void x27_set_speed(x27_motor_t *motor, uint32_t delay_us) {
+    if (!motor) return;
     if (delay_us < X27_MIN_STEP_US) delay_us = X27_MIN_STEP_US;
     motor->step_delay_us = delay_us;
 }
 
+void x27_set_direction_inverted(x27_motor_t *motor, bool inverted) {
+    if (!motor) return;
+    motor->direction_inverted = inverted;
+}
+
 int32_t x27_get_position(const x27_motor_t *motor) {
+    if (!motor) return 0;
     return motor->current_position;
 }
 
 bool x27_is_at_target(const x27_motor_t *motor) {
+    if (!motor) return true;
     return motor->current_position == motor->target_position;
 }
 
 void x27_sleep(x27_motor_t *motor) {
+    if (!motor || !motor->initialized) return;
+
     if (motor->driver_type == X27_DRIVER_GPIO) {
         x27_set_coils_gpio(motor, 0, 0, 0, 0);
     } else {
-        // VID6606: use RESET pin to disable outputs if available
-        if (motor->config.vid6606.pin_reset != 0) {
-            gpio_put(motor->config.vid6606.pin_reset, 0);
-        }
+        // VID6606/STI6606: disable outputs through RESET when available.
+        x27_vid_set_outputs_enabled(motor, false);
     }
+}
+
+void x27_wake(x27_motor_t *motor) {
+    if (!motor || !motor->initialized) return;
+    if (motor->driver_type == X27_DRIVER_GPIO) return;
+    x27_vid_set_outputs_enabled(motor, true);
 }

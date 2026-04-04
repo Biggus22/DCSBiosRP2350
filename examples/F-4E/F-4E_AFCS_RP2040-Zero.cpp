@@ -23,14 +23,12 @@
 //#define HOLD_POWER_AFCS 125  // Reduced power for AFCS Hold (Increased to 50% duty cycle)
 //#define HOLD_POWER_ALTHLD 130 // Reduced power for ALT HOLD (Increased to 50% duty cycle)
 //#define HOLD_TIME 3000       // Time in milliseconds to hold full power (3 sec)
-#define NUM_LEDS 18          // Total number of SK6812 LEDs
+#define NUM_LEDS 10          // Total number of SK6812 LEDs
 #define ONBOARD_NEOPIXEL_PIN 16 // Define the pin for the onboard NeoPixel
 
 
-WS2812 externalLeds(pio0, 0, 14, false); // Global WS2812 object for external NeoPixels on pin 5
-WS2812 onboardLed(pio1, 0, ONBOARD_NEOPIXEL_PIN, false); // WS2812 object for the onboard NeoPixel on pin 16
-
-
+WS2812 externalLeds(pio0, 0, 8, false); // Global WS2812 object for external NeoPixels on pin 5
+//WS2812 onboardLed(pio1, 0, ONBOARD_NEOPIXEL_PIN, false); // WS2812 object for the onboard NeoPixel on pin 16
 
 uart_inst_t *rs485_uart = uart0; // Control UART in main
 
@@ -158,8 +156,11 @@ DcsBios::IntegerBuffer pltIntLightConsoleBuffer(F_4E_PLT_INT_LIGHT_CONSOLE, onPl
 // DCS-BIOS F-4E INPUT FUNCTIONS HERE
 
 
-DcsBios::Switch3PosLatchedMomentary pltAfcsAltHold("PLT_AFCS_ALT_HOLD", 9, 8);
-DcsBios::Switch3PosLatchedMomentary pltAfcsAutopilot("PLT_AFCS_AUTOPILOT", 4, 5);
+// AFCS/Alt-hold are three-position momentary switches (new wiring)
+// AFCS on = pin 4, AFCS off = pin 26
+// Alt hold on = pin 7, Alt hold off = pin 27
+DcsBios::Switch3PosLatchedMomentary pltAfcsAltHold("PLT_AFCS_ALT_HOLD", 7, 27);
+DcsBios::Switch3PosLatchedMomentary pltAfcsAutopilot("PLT_AFCS_AUTOPILOT", 4, 26);
 
 
 // On-off toggle for magnetically held momentary toggles
@@ -171,31 +172,102 @@ DcsBios::Switch3PosLatchedMomentary pltAfcsAutopilot("PLT_AFCS_AUTOPILOT", 4, 5)
 //const uint8_t pltAfcsStabAugPitchPins[2] = {15, 13};
 //DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsStabAugPitch("PLT_AFCS_STAB_AUG_PITCH", pltAfcsStabAugPitchPins);
 
-const uint8_t pltAfcsStabAugPitchPins[2] = {15, 13};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsStabAugPitch("PLT_AFCS_STAB_AUG_PITCH", pltAfcsStabAugPitchPins,
-0x2a70, 0x0400, 10, 50);
-const uint8_t pltAfcsStabAugRollPins[2] = {27, 26};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsStabAugRoll("PLT_AFCS_STAB_AUG_ROLL", pltAfcsStabAugRollPins,
-0x2a70, 0x0200, 9, 50);
-const uint8_t pltAfcsStabAugYawPins[2] = {28, 29};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsStabAugYaw("PLT_AFCS_STAB_AUG_YAW", pltAfcsStabAugYawPins,
-0x2a70, 0x0100, 8, 50);
+// Stabilizer augment inputs are now provided via a 74HC165 shift register
+// Remove SyncingSwitchMultiPosT usage and poll the shift register bits below.
 
 // DCS-BIOS F-14A/B FUNCTIONS HERE
-DcsBios::Switch3PosLatchedMomentary pltAutopltAlt("PLT_AUTOPLT_ALT", 9, 8);
-DcsBios::Switch3PosLatchedMomentary pltAutopltEngage("PLT_AUTOPLT_ENGAGE", 4, 5);
+// F-14 autopilot/alt-hold use same new wiring
+DcsBios::Switch3PosLatchedMomentary pltAutopltAlt("PLT_AUTOPLT_ALT", 7, 27);
+DcsBios::Switch3PosLatchedMomentary pltAutopltEngage("PLT_AUTOPLT_ENGAGE", 4, 26);
 
 //const uint8_t pltAutopltAltPin = 8;
 //DcsBios::Switch2Pos pltAutopltAlt("PLT_AUTOPLT_ALT", pltAutopltAltPin);
 //const uint8_t pltAutopltEngagePin = 12;
 //DcsBios::Switch2Pos pltAutopltEngage("PLT_AUTOPLT_ENGAGE", pltAutopltEngagePin, true);
 
-const uint8_t pltAfcsPitchPins[2] = {15, 13};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsPitch("PLT_AFCS_YAW", pltAfcsPitchPins);
-const uint8_t pltAfcsRollPins[2] = {27, 26};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsRoll("PLT_AFCS_ROLL", pltAfcsRollPins);
-const uint8_t pltAfcsYawPins[2] = {28, 29};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltAfcsYaw("PLT_AFCS_PITCH", pltAfcsYawPins);
+// AFCS Pitch/Roll/Yaw inputs removed from direct GPIO; handled via 74HC165
+
+// --- 74HC165 shift-register pins and polling ---
+// 74HC165 pins per PCB: clock=22, PS(/PL)=23, MISO=20
+const uint8_t SR_CLK_PIN = 22; // clock
+const uint8_t SR_PL_PIN = 23;  // parallel load (/PL)
+const uint8_t SR_Q7_PIN = 20;  // serial out (MISO)
+
+static uint8_t lastShiftState = 0;
+static uint32_t lastDebounceTime[6] = {0,0,0,0,0,0};
+static bool lastStableState[6] = {false,false,false,false,false,false};
+const unsigned long SR_DEBOUNCE_MS = 30;
+
+// Reads 8 bits from 74HC165 and returns value (bit0 = D0)
+static uint8_t readShiftRegister() {
+    uint8_t val = 0;
+    // Load parallel inputs (active low PL)
+    gpio_put(SR_PL_PIN, 0);
+    sleep_us(5);
+    gpio_put(SR_PL_PIN, 1);
+    sleep_us(1);
+
+    // Read 8 bits, MSB first depending on wiring; read into bit0..bit7
+    for (int i = 0; i < 8; i++) {
+        // Pulse clock
+        gpio_put(SR_CLK_PIN, 1);
+        sleep_us(1);
+        int bit = gpio_get(SR_Q7_PIN);
+        gpio_put(SR_CLK_PIN, 0);
+        sleep_us(1);
+        // Shift into position i
+        if (bit) val |= (1 << i);
+    }
+    return val;
+}
+
+// Mapping: D0 pitch off, D1 pitch on, D2 yaw on, D3 yaw off, D4 roll off, D5 roll on
+static void pollShiftRegisterAndSend() {
+    uint8_t cur = readShiftRegister();
+    // For each of the 6 bits we care about, treat active as LOW (pressed)
+    int bitMap[6] = {0,1,2,3,4,5};
+    // For each mapping, determine logical active state (true when pressed)
+    for (int i=0;i<6;i++) {
+        bool active = ((cur & (1<<bitMap[i])) == 0);
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        if (active != lastStableState[i]) {
+            // start debounce timer
+            if (now - lastDebounceTime[i] > SR_DEBOUNCE_MS) {
+                // state stable long enough, commit
+                lastStableState[i] = active;
+                lastDebounceTime[i] = now;
+                // On press (active true) send corresponding message
+                if (active) {
+                    switch(i) {
+                        case 0: // D0 pitch off -> send "0"
+                            DcsBios::tryToSendDcsBiosMessage("PLT_AFCS_STAB_AUG_PITCH", "0");
+                            break;
+                        case 1: // D1 pitch on -> send "2"
+                            DcsBios::tryToSendDcsBiosMessage("PLT_AFCS_STAB_AUG_PITCH", "2");
+                            break;
+                        case 2: // D2 yaw on -> send "2"
+                            DcsBios::tryToSendDcsBiosMessage("PLT_AFCS_STAB_AUG_YAW", "2");
+                            break;
+                        case 3: // D3 yaw off -> send "0"
+                            DcsBios::tryToSendDcsBiosMessage("PLT_AFCS_STAB_AUG_YAW", "0");
+                            break;
+                        case 4: // D4 roll off -> send "0"
+                            DcsBios::tryToSendDcsBiosMessage("PLT_AFCS_STAB_AUG_ROLL", "0");
+                            break;
+                        case 5: // D5 roll on -> send "2"
+                            DcsBios::tryToSendDcsBiosMessage("PLT_AFCS_STAB_AUG_ROLL", "2");
+                            break;
+                    }
+                }
+            } else {
+                // update timer
+                lastDebounceTime[i] = now;
+            }
+        } else {
+            lastDebounceTime[i] = now;
+        }
+    }
+}
 
 // DCS-BIOS callback function for F-14 console lighting (red)
 void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
@@ -259,6 +331,16 @@ int main()
 */
     DcsBios::currentBoardMode = board;
     DcsBios::init_rs485_uart(rs485_uart, UART0_TX, UART0_RX, RS485_EN, 250000);
+    // Initialize 74HC165 pins
+    gpio_init(SR_CLK_PIN);
+    gpio_init(SR_PL_PIN);
+    gpio_init(SR_Q7_PIN);
+    gpio_set_dir(SR_CLK_PIN, GPIO_OUT);
+    gpio_set_dir(SR_PL_PIN, GPIO_OUT);
+    gpio_set_dir(SR_Q7_PIN, GPIO_IN);
+    // idle states
+    gpio_put(SR_CLK_PIN, 0);
+    gpio_put(SR_PL_PIN, 1);
 
     multicore_launch_core1(DcsBios::core1_task);
 
@@ -266,6 +348,7 @@ int main()
 
     while (true)
     {
+        pollShiftRegisterAndSend();
         DcsBios::loop();
         DcsBios::updateHeartbeat();
         //check_hold_times(); // <-- new non-blocking check

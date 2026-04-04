@@ -1,0 +1,5 @@
+; PIO program to output 4-bit stepper patterns to consecutive pins
+.program stepper
+    pull block        ; wait for next 32-bit value in FIFO
+    out pins, 4       ; output low 4 bits to pins
+    jmp 0             ; loop

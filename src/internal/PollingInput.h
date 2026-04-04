@@ -25,7 +25,7 @@ namespace DcsBios {
 				this->nextPollingInput = firstPollingInput;
 				firstPollingInput = this;
 				lastPollTime = 0;
-				pollingIntervalMs = pollIntervalMs;
+				this->pollingIntervalMs = pollIntervalMs;
 			}
 			static void pollInputs() {
 				PollingInput* pi = firstPollingInput;

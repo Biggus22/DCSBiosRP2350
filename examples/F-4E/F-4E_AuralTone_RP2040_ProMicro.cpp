@@ -27,7 +27,14 @@ WS2812 externalLeds(pio0, 0, 9, false); // Global WS2812 object for external Neo
 
 uart_inst_t *rs485_uart = uart0;
 
-DcsBios::Potentiometer pltAoaAuralTone("PLT_AOA_AURAL_TONE", 28);
+// Use the existing PotentiometerEWMA implementation with minimal filtering.
+// - pollIntervalMs: 5 ms
+// - hysteresis: 16
+// - ewma_divisor: 2 (very light smoothing)
+// This uses the library implementation (`src/internal/Potentiometers.h`).
+// Use low-resolution potentiometer (bit-drop) to reduce sensitivity and CPU.
+// Defaults: pollIntervalMs = POLL_EVERY_TIME, hysteresis = 128, dropBits = 2
+DcsBios::LowResPotentiometer<> pltAoaAuralTone("PLT_AOA_AURAL_TONE", 28);
 
 // DCS-BIOS callback function for F-4E console lighting (red)
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {

@@ -595,6 +595,169 @@ namespace DcsBios {
 	};
 	typedef Switch3Pos2PinT<> Switch3Pos2Pin;
 
+	// Make‑Before‑Break variant for 3‑position 2‑pin switches
+	// Physical wiring: center connects both pins together (both pins READ LOW when centered)
+	template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
+	class Switch3PosMakeBeforeBreakT : PollingInput, public ResettableInput {
+	private:
+		const char* msg_;
+		bool useExpander_;
+		enum ExpanderType { NONE, AW9523B_TYPE, PCF8575_TYPE, MCP23S17_TYPE };
+		ExpanderType expanderType_;
+		AW9523B* aw9523b_;
+		PCF8575* pcf8575_;
+		MCP23S17* mcp23s17_;
+		uint8_t pins_[2];
+		int8_t lastState_;
+		int8_t debounceCandidate_;
+		unsigned long debounceDelay_;
+		unsigned long lastDebounceTime_;
+		unsigned long centerStableSince_;
+
+		// Active-LOW read (external pull-ups)
+		inline char readInput(uint8_t idx) {
+			if (useExpander_) {
+				switch (expanderType_) {
+					case AW9523B_TYPE:
+						if (aw9523b_) return aw9523b_->readPin(pins_[idx]);
+						break;
+					case PCF8575_TYPE:
+						if (pcf8575_) return pcf8575_->digitalRead(pins_[idx]);
+						break;
+					case MCP23S17_TYPE:
+						if (mcp23s17_) return mcp23s17_->digitalRead(pins_[idx]);
+						break;
+					default:
+						break;
+				}
+				return 0;
+			}
+			return gpio_get(pins_[idx]);
+		}
+
+		// Map raw A/B to logical position; return -1 if invalid (both HIGH)
+		inline int8_t mapLogical(bool aActive, bool bActive) {
+			// Make-before-break: BOTH active (LOW) == center
+			if (!aActive && !bActive) return -1; // both HIGH -> transient/ignore
+			if (aActive && bActive)   return 1;  // both LOW -> center
+			if (aActive && !bActive)  return 0;  // A thrown
+			/* !aActive && bActive */ return 2;  // B thrown
+		}
+
+		void resetState() {
+			lastState_ = -1;
+			debounceCandidate_ = -1;
+			lastDebounceTime_ = 0;
+			centerStableSince_ = 0;
+		}
+
+		void pollInput() {
+			const unsigned long now = to_ms_since_boot(get_absolute_time());
+
+			// Read raw pins (active when LOW)
+			const bool aActive = (readInput(0) == 0);
+			const bool bActive = (readInput(1) == 0);
+
+			// Center watchdog: if both LOW and stable for debounceDelay_, force center=1
+			const bool isCenterPhysical = (aActive && bActive);
+			if (isCenterPhysical) {
+				if (centerStableSince_ == 0) centerStableSince_ = now;
+				if ((now - centerStableSince_) >= debounceDelay_) {
+					if (lastState_ != 1) {
+						char msgBuffer[3];
+						snprintf(msgBuffer, sizeof(msgBuffer), "%d", 1);
+						if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
+							lastState_ = 1;
+						}
+					}
+					// Align logical debounce state with enforced center and exit
+					debounceCandidate_ = 1;
+					lastDebounceTime_  = now;
+					return;
+				}
+			} else {
+				centerStableSince_ = 0; // reset when not physically centered
+			}
+
+			// Determine current logical candidate
+			const int8_t logical = mapLogical(aActive, bActive);
+
+			// If invalid combo (both HIGH), do not change candidate; just hold last.
+			if (logical < 0) return;
+
+			// Debounce the logical state
+			if (logical != debounceCandidate_) {
+				debounceCandidate_ = logical;
+				lastDebounceTime_  = now;
+			}
+
+			if ((now - lastDebounceTime_) >= debounceDelay_) {
+				if (debounceCandidate_ != lastState_) {
+					char msgBuffer[3];
+					snprintf(msgBuffer, sizeof(msgBuffer), "%d", debounceCandidate_);
+					if (tryToSendDcsBiosMessage(msg_, msgBuffer)) {
+						lastState_ = debounceCandidate_;
+					}
+				}
+			}
+		}
+
+	public:
+		// GPIO constructor (two discrete pins)
+		Switch3PosMakeBeforeBreakT(const char* msg, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), useExpander_(false), expanderType_(NONE),
+			lastState_(-1), debounceCandidate_(-1), debounceDelay_(debounceDelay),
+			lastDebounceTime_(0), centerStableSince_(0)
+		{
+			pins_[0] = pinA; pins_[1] = pinB;
+			gpio_init(pins_[0]); gpio_pull_up(pins_[0]); gpio_set_dir(pins_[0], GPIO_IN);
+			gpio_init(pins_[1]); gpio_pull_up(pins_[1]); gpio_set_dir(pins_[1], GPIO_IN);
+			resetState();
+		}
+
+		// AW9523B constructor (two pins on expander)
+		Switch3PosMakeBeforeBreakT(const char* msg, AW9523B* expander, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), useExpander_(true), expanderType_(AW9523B_TYPE),
+			aw9523b_(expander), lastState_(-1), debounceCandidate_(-1), debounceDelay_(debounceDelay),
+			lastDebounceTime_(0), centerStableSince_(0)
+		{
+			pins_[0] = pinA; pins_[1] = pinB;
+			aw9523b_->setPinInput(pins_[0]);
+			aw9523b_->setPinInput(pins_[1]);
+			resetState();
+		}
+
+		// PCF8575 constructor (two pins on expander)
+		Switch3PosMakeBeforeBreakT(const char* msg, PCF8575* expander, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), useExpander_(true), expanderType_(PCF8575_TYPE),
+			pcf8575_(expander), lastState_(-1), debounceCandidate_(-1), debounceDelay_(debounceDelay),
+			lastDebounceTime_(0), centerStableSince_(0)
+		{
+			pins_[0] = pinA; pins_[1] = pinB;
+			pcf8575_->pinMode(pins_[0], GPIO_IN);
+			pcf8575_->pullUp(pins_[0], true);
+			pcf8575_->pinMode(pins_[1], GPIO_IN);
+			pcf8575_->pullUp(pins_[1], true);
+			resetState();
+		}
+
+		// MCP23S17 constructor (two pins on expander)
+		Switch3PosMakeBeforeBreakT(const char* msg, MCP23S17* expander, uint8_t pinA, uint8_t pinB, unsigned long debounceDelay = 50) :
+			PollingInput(pollIntervalMs), msg_(msg), useExpander_(true), expanderType_(MCP23S17_TYPE),
+			mcp23s17_(expander), lastState_(-1), debounceCandidate_(-1), debounceDelay_(debounceDelay),
+			lastDebounceTime_(0), centerStableSince_(0)
+		{
+			pins_[0] = pinA; pins_[1] = pinB;
+			mcp23s17_->pinMode(pins_[0], _INPUT_PULLUP);
+			mcp23s17_->pinMode(pins_[1], _INPUT_PULLUP);
+			resetState();
+		}
+
+		void SetControl(const char* msg) { msg_ = msg; }
+		void resetThisState() { resetState(); }
+	};
+	typedef Switch3PosMakeBeforeBreakT<> Switch3PosMakeBeforeBreak;
+
 	// Switch3PosLatchedMomentary - A 3-position momentary switch that only sends states 0 and 2
 	// Enhanced version with state reset capability
 	template <unsigned long pollIntervalMs = POLL_EVERY_TIME>

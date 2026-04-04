@@ -16,9 +16,11 @@
 #include "hardware/pwm.h"
 #include "internal/ws2812.h" // Include the WS2812 header
 #include "hardware/gpio.h"
-#define NUM_LEDS 33 // Total number of SK6812 LEDs
-#define CMS_LED 13 // CMS ON LED
-#define FLARES_LED 12 // FLARES ON LED
+#define NUM_LEDS 30 // Total number of SK6812 LEDs
+// Last two WS2812 pixels reserved for indicator LEDs (1-based LED 29 -> FLARES, LED 30 -> CMS)
+// NOTE: FLARES shows BLUE while CMS shows GREEN (temporary mapping)
+const uint8_t FLARES_PIXEL = NUM_LEDS - 2; // LED 29 (blue)
+const uint8_t CMS_PIXEL = NUM_LEDS - 1;    // LED 30 (green)
 
 WS2812 externalLeds(pio0, 0, 3, false); // Global WS2812 object for external NeoPixels on pin 3
 
@@ -26,42 +28,46 @@ uart_inst_t *rs485_uart = uart0;
 
 // DCS-BIOS F-4E INPUT FUNCTIONS HERE
 //const uint8_t pltFuelAirRefuelPins[2] = {7, 8};
-DcsBios::Switch2PosT<> pltFuelAirRefuel("PLT_FUEL_AIR_REFUEL", 7, false);
-DcsBios::Switch3Pos2Pin pltFuelExternalTanksFeed("PLT_FUEL_EXTERNAL_TANKS_FEED", 29, 28);
+DcsBios::Switch2PosT<> pltFuelAirRefuel("PLT_FUEL_AIR_REFUEL", 8, false);
+DcsBios::Switch3PosMakeBeforeBreak pltFuelExternalTanksFeed("PLT_FUEL_EXTERNAL_TANKS_FEED", 28, 29);
 DcsBios::SwitchWithCover2PosT<> pltFuelRefuelSelector("PLT_FUEL_REFUEL_SELECTOR", "PLT_FUEL_REFUEL_SELECTOR_COVER", 14);
 
 //const uint8_t pltFuelWingFuelDumpPins[2] = {9, 10};
-DcsBios::Switch2PosT<> pltFuelWingFuelDump("PLT_FUEL_WING_FUEL_DUMP", 9);
+DcsBios::Switch2PosT<> pltFuelWingFuelDump("PLT_FUEL_WING_FUEL_DUMP", 9, true);
 
 DcsBios::Switch2PosT<> pltFuelBoostPumpLCheck("PLT_FUEL_BOOST_PUMP_L_CHECK", 6);
 DcsBios::Switch2PosT<> pltFuelBoostPumpRCheck("PLT_FUEL_BOOST_PUMP_R_CHECK", 5);
 
-const uint8_t pltFuelWingInternalFeedPins[2] = {27, 26};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltFuelWingInternalFeed("PLT_FUEL_WING_INTERNAL_FEED", pltFuelWingInternalFeedPins);
+DcsBios::Switch2PosT<> pltFuelWingInternalFeed("PLT_FUEL_WING_INTERNAL_FEED", 26);
 
-DcsBios::Switch2Pos pltCmFlareNormal("PLT_CM_FLARE_NORMAL", 11, false);
+DcsBios::Switch2Pos pltCmFlareNormal("PLT_CM_FLARE_NORMAL", 11, true);
 
 void onPltCmFlareLightChange(unsigned int newValue) {
-    if (newValue == 1) {
-        gpio_put(FLARES_LED, 1); // Set the pin high (on)
-    } 
-    // Otherwise, turn the LED off
-    else {
-        gpio_put(FLARES_LED, 0); // Set the pin low (off)
+    // Debug: show received value and update indicator
+    printf("onPltCmFlareLightChange: %u\n", newValue);
+
+    // FLARES indicator -> show BLUE when DCS-BIOS reports flares active (non-zero value)
+    if (newValue > 0) {
+        externalLeds.setPixel(FLARES_PIXEL, externalLeds.rgbw(0, 0, 201, 0)); // blue
+    } else {
+        externalLeds.setPixel(FLARES_PIXEL, externalLeds.rgbw(0, 0, 0, 0)); // off
     }
+    externalLeds.show();
 }
 
 DcsBios::IntegerBuffer pltCmFlareLightBuffer(F_4E_PLT_CM_FLARE_LIGHT, onPltCmFlareLightChange);
 
 void onPltCmOnLightChange(unsigned int newValue) {
-    // Check if newValue is 1 to turn the LED on
-    if (newValue == 1) {
-        gpio_put(CMS_LED, 1); // Set the pin high (on)
-    } 
-    // Otherwise, turn the LED off
-    else {
-        gpio_put(CMS_LED, 0); // Set the pin low (off)
+    // Debug: show received value and update indicator
+    printf("onPltCmOnLightChange: %u\n", newValue);
+
+    // CMS indicator -> show GREEN when non-zero (temporary mapping)
+    if (newValue > 0) {
+        externalLeds.setPixel(CMS_PIXEL, externalLeds.rgbw(0, 201, 0, 0)); // green
+    } else {
+        externalLeds.setPixel(CMS_PIXEL, externalLeds.rgbw(0, 0, 0, 0)); // off
     }
+    externalLeds.show();
 }
 DcsBios::IntegerBuffer pltCmOnLightBuffer(F_4E_PLT_CM_ON_LIGHT, onPltCmOnLightChange);
 
@@ -69,7 +75,8 @@ DcsBios::IntegerBuffer pltCmOnLightBuffer(F_4E_PLT_CM_ON_LIGHT, onPltCmOnLightCh
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
     uint8_t intensity = (uint8_t)((consoleBrightness * 255) / 65535);
     
-    for (int i = 0; i < NUM_LEDS; i++) {
+    // Update console pixels only; leave last two indicator pixels unchanged
+    for (int i = 0; i < NUM_LEDS - 2; i++) {
         externalLeds.setPixel(i, externalLeds.rgbw(intensity, 0, 0, 0)); // Red for F-4
     }
     externalLeds.show();
@@ -90,7 +97,7 @@ void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
         brightness = (uint8_t)((consoleBrightness * 255) / 65535);
     }
 
-    for (int i = 0; i < NUM_LEDS; i++) {
+    for (int i = 0; i < NUM_LEDS - 2; i++) {
         externalLeds.setPixel(i, externalLeds.rgbw(brightness, 0, 0, 0)); // Red for F-14
     }
     externalLeds.show();
@@ -104,20 +111,18 @@ int main()
     sleep_ms(2000);                        // Wait for USB CDC to be ready
     externalLeds.begin(NUM_LEDS); // Initialize with 10 pixels
 
-    // Initialize the GPIO pin for the LED
-    gpio_init(CMS_LED);
-    gpio_init(FLARES_LED);
-    // Set the LED pin as an output
-    gpio_set_dir(CMS_LED, GPIO_OUT);
-    gpio_set_dir(FLARES_LED, GPIO_OUT);
+    // Indicator LEDs are handled by the last two WS2812 pixels (FLARES_PIXEL, CMS_PIXEL)
 
-    // Power-on Green Flash for 1 second
-    for (int i = 0; i < NUM_LEDS; i++)
+    // Power-on Green Flash for 1 second (indicator pixels show their own colors)
+    for (int i = 0; i < NUM_LEDS - 2; i++)
     {
-        externalLeds.setPixel(i, externalLeds.rgbw(0, 201, 0, 0)); // Set all pixels to green (R=0, G=255, B=0, W=0)
+        externalLeds.setPixel(i, externalLeds.rgbw(0, 201, 0, 0)); // Set console pixels to green
     }
+    // Set indicator pixels explicitly: FLARES (blue), CMS (green)
+    externalLeds.setPixel(FLARES_PIXEL, externalLeds.rgbw(0, 0, 201, 0));
+    externalLeds.setPixel(CMS_PIXEL, externalLeds.rgbw(0, 201, 0, 0));
     externalLeds.show();
-    sleep_ms(2000); // Display green for 1 second
+    sleep_ms(2000); // Display for 2 seconds
 
     // Clear LEDs after the flash
     externalLeds.clear();

@@ -17,18 +17,23 @@
 #include "hardware/adc.h"
 #define NUM_LEDS 13 // Total number of SK6812 LEDs
 
-WS2812 externalLeds(pio0, 0, 14, false); // Global WS2812 object for external NeoPixels on pin 14
+WS2812 externalLeds(pio0, 0, 15, false); // Global WS2812 object for external NeoPixels on pin 14
 
 uart_inst_t *rs485_uart = uart0;
 
+// PWM slice/channel for an extra red LED driven by console backlight (GPIO 11)
+static uint console_backlight_slice = 0;
+static uint console_backlight_chan = 0;
+
 // DCS-BIOS F-4E INPUT FUNCTIONS HERE
-//const uint8_t pltIcsAmplifierPins[3] = {5, 4, 3};
-//DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmplifier("PLT_ICS_AMPLIFIER", pltIcsAmplifierPins,
-//0x2a00, 0x0300, 8, 50);
-const uint8_t pltIcsModePins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
+const uint8_t pltIcsAmplifierPins[3] = {12, 13, 14};
+DcsBios::SyncingSwitchMultiPosCenterT<POLL_EVERY_TIME, 3> pltIcsAmplifier("PLT_ICS_AMPLIFIER", pltIcsAmplifierPins,
+0x2a00, 0x0300, 8, 50);
+const uint8_t pltIcsModePins[2] = {6, 7};  // Changed to 2 pins for 3-position switch
 DcsBios::Switch3Pos2Pin pltIcsMode("PLT_ICS_MODE", pltIcsModePins[0], pltIcsModePins[1]);
 
-DcsBios::Potentiometer pltIcsIntercomVol("PLT_ICS_INTERCOM_VOL", 27, true, 0, 4095);
+// Use low-resolution potentiometer to reduce chatter and CPU: defaults dropBits=2
+DcsBios::LowResPotentiometer<> pltIcsIntercomVol("PLT_ICS_INTERCOM_VOL", 28, true, 0, 4095);
 
 // DCS-BIOS callback function for F-4E console lighting (red)
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
@@ -38,17 +43,22 @@ void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
         externalLeds.setPixel(i, externalLeds.rgbw(intensity, 0, 0, 0)); // Red for F-4
     }
     externalLeds.show();
+
+    // Mirror console backlight to GPIO 11 (single red LED) using PWM
+    pwm_set_chan_level(console_backlight_slice, console_backlight_chan, intensity);
 }
 DcsBios::IntegerBuffer pltIntLightConsoleBuffer(F_4E_PLT_INT_LIGHT_CONSOLE, onPltIntLightConsoleChange);
 
 // DCS-BIOS F-14A/B FUNCTIONS HERE
-//const uint8_t pltIcsAmpSelPins[3] = {5, 4, 3};
-//DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 3> pltIcsAmpSel("PLT_ICS_AMP_SEL", pltIcsAmpSelPins,
-//0x1234, 0x0600, 9, 50);
-const uint8_t pltIcsFuncSelPins[2] = {8, 9};  // Changed to 2 pins for 3-position switch
+const uint8_t pltIcsAmpSelPins[3] = {12, 13, 14};
+DcsBios::SyncingSwitchMultiPosCenterT<POLL_EVERY_TIME, 3> pltIcsAmpSel("PLT_ICS_AMP_SEL", pltIcsAmpSelPins,
+0x1234, 0x0600, 9, 50);
+
+const uint8_t pltIcsFuncSelPins[2] = {6, 7};  // Changed to 2 pins for 3-position switch
 DcsBios::Switch3Pos2Pin pltIcsFuncSel("PLT_ICS_FUNC_SEL", pltIcsFuncSelPins[0], pltIcsFuncSelPins[1]);
 
-DcsBios::Potentiometer pltIcsVol("PLT_ICS_VOL", 27, true, 0, 4095);
+// Low-resolution variant to reduce message churn
+DcsBios::LowResPotentiometer<> pltIcsVol("PLT_ICS_VOL", 28, true, 0, 4095);
 
 // DCS-BIOS callback function for F-14 console lighting (red)
 void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
@@ -68,6 +78,9 @@ void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
         externalLeds.setPixel(i, externalLeds.rgbw(brightness, 0, 0, 0)); // Red for F-14
     }
     externalLeds.show();
+
+    // Mirror console backlight to GPIO 11 (single red LED) using PWM
+    pwm_set_chan_level(console_backlight_slice, console_backlight_chan, brightness);
 }
 DcsBios::IntegerBuffer f14PltIntLightConsoleBuffer(F_14_PLT_LIGHT_INTENT_CONSOLE, onF14PltIntLightConsoleChange);
 
@@ -79,8 +92,16 @@ int main()
     DcsBios::initHeartbeat(HEARTBEAT_LED); // Initialize heartbeat LED
     sleep_ms(2000);                        // Wait for USB CDC to be ready
     adc_init();
-    adc_gpio_init(27);
+    // adc_gpio_init(27); // commented out — not used by this example's pots
     externalLeds.begin(NUM_LEDS); // Initialize with 10 pixels
+
+    // Configure GPIO 11 for PWM (extra red LED that follows console backlight)
+    gpio_set_function(11, GPIO_FUNC_PWM);
+    console_backlight_slice = pwm_gpio_to_slice_num(11);
+    console_backlight_chan = pwm_gpio_to_channel(11);
+    pwm_set_clkdiv(console_backlight_slice, 4.0f);   // reasonable PWM frequency for LED
+    pwm_set_wrap(console_backlight_slice, 255);      // 8-bit brightness range
+    pwm_set_enabled(console_backlight_slice, true);
 
     // Power-on Green Flash for 1 second
     for (int i = 0; i < NUM_LEDS; i++)

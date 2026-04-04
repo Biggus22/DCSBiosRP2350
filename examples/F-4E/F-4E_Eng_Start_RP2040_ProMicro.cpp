@@ -40,7 +40,7 @@ DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltEngineMasterL("PLT_ENGINE_MASTER
 const uint8_t pltEngineMasterRPins[2] = {14, 15};
 DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltEngineMasterR("PLT_ENGINE_MASTER_R", pltEngineMasterRPins);
 //const uint8_t pltEngineStartRPins[2] = {13, 12};
-DcsBios::Switch3Pos2Pin pltEngineStart("PLT_ENGINE_START", 13, 12);
+DcsBios::Switch3Pos2Pin pltEngineStart("PLT_ENGINE_START", 12, 13);
 //const uint8_t pltControlsRudderTrimPins[2] = {9, 8};
 DcsBios::Switch3Pos2Pin pltControlsRudderTrim("PLT_CONTROLS_RUDDER_TRIM", 9, 8);
 //const uint8_t pltCadcCorrectionPins[2] = {11, 10};

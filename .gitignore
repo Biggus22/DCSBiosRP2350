@@ -266,5 +266,15 @@ build/pico-sdk/src/rp2_common/pico_time_adapter/cmake_install.cmake
 build/pico-sdk/src/rp2_common/pico_unique_id/cmake_install.cmake
 build/pico-sdk/src/rp2_common/tinyusb/cmake_install.cmake
 build/pico-sdk/tools/cmake_install.cmake
-DCSBiosPi/
-DCSBiosPi_repo/
+
+# Ignore vendored dcs-bios Arduino library
+dcs-bios-arduino-library-0.3.12/
+
+# Ignore DCSBIOS data export reference folder
+DCSBIOS-data-export-11.0/
+DCSBIOS-data-export-11.2/
+.github/agents/expert-cpp-software-engineer.agent.md
+FUTURE_DRIVER_EXTRACTION_TODOS.md
+LEFT_SUBPANEL_PINMAP.md
+VID6606 manual 060927.pdf
+DataAnalysisExpert/added_addresses_11_2.txt

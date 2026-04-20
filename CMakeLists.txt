@@ -49,7 +49,8 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AuralTone_RP2040_ProMicro.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_EngStart_RP2040_ProMicro_testing_light.cpp)
 # add_executable(DCSBiosRP2350 test_programs/DC_motor_MX1508_test.cpp)
-add_executable(DCSBiosRP2350 test_programs/servo_sweep_test.cpp)
+add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/servo_sweep_test.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
  #add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
@@ -87,17 +88,11 @@ pico_enable_stdio_usb(DCSBiosRP2350 1)
 
 # Enable Arduino RS485 framing compatibility in this example build
 #target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
-# X27 step resolution (set to 1080 for full 360-degree travel)
-target_compile_definitions(DCSBiosRP2350 PRIVATE X27_STEPS_PER_REV=1080)
 
 # Compile ws2812.pio into ws2812.pio.h
 pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/ws2812.pio
     ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/i2c.pio
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_programs/stepper.pio
 )
-
-#pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/st7789.pio
-#)
 
 # Add the standard library to the build
 target_link_libraries(DCSBiosRP2350 PRIVATE
@@ -125,7 +120,6 @@ target_include_directories(DCSBiosRP2350 PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/internal
-        # ${CMAKE_CURRENT_LIST_DIR}/src/external/st7789-library-for-pico-main/src/include
 )
 target_sources(DCSBiosRP2350 PRIVATE
     src/internal/Protocol.cpp
@@ -140,7 +134,6 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/rs485.cpp
     src/internal/rs485_arduino.cpp
     src/internal/core1_tasks.cpp
-    # src/external/st7789-library-for-pico-main/src/st7789.c
     src/internal/TM1637.cpp
     src/internal/Mcp23s17.cpp
     src/internal/PCF8575.cpp
@@ -149,7 +142,6 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/BYJ48_stepper.cpp
     src/internal/ST7789.cpp
     src/internal/ST7789_numbers.cpp
-    #src/internal/ADS1115.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 

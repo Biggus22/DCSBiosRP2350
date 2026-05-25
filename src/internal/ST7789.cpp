@@ -223,6 +223,35 @@ void ST7789::drawFillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16
     gpio_put(cs_, 1);
 }
 
+void ST7789::drawScrollingBitmap(const uint8_t* bitmap, uint16_t bmpH, uint16_t scrollOffset) {
+    uint16_t dw = width_;
+    uint16_t dh = height_;
+    if (dw == 0 || dh == 0) return;
+
+    setAddrWindow(0, 0, dw - 1, dh - 1);
+    gpio_put(dc_, 1);
+    gpio_put(cs_, 0);
+
+    uint8_t blackBuf[128];
+    memset(blackBuf, 0, sizeof(blackBuf));
+
+    for (uint16_t row = 0; row < dh; row++) {
+        uint16_t bmpRow = scrollOffset + row;
+        if (bmpRow < bmpH) {
+            const uint8_t* rowData = bitmap + (uint32_t)bmpRow * dw * 2;
+            spi_write_blocking(spi_, rowData, dw * 2);
+        } else {
+            size_t remaining = dw;
+            while (remaining) {
+                size_t chunk = (remaining < sizeof(blackBuf) / 2) ? remaining : (sizeof(blackBuf) / 2);
+                spi_write_blocking(spi_, blackBuf, chunk * 2);
+                remaining -= chunk;
+            }
+        }
+    }
+    gpio_put(cs_, 1);
+}
+
 void ST7789::drawStringScaled(uint16_t x, uint16_t y, const char* s, uint16_t color, uint8_t scale) {
     uint16_t cursor = x;
     while (*s) {

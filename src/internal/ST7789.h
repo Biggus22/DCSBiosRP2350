@@ -34,6 +34,9 @@ public:
     // Clear a rectangular region (public helper)
     void drawFillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
     void clearRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+    // Draw a scrolling bitmap: display shows a 320px-tall window into the bitmap
+    // at vertical offset `scrollOffset`. Bitmap width must match display width.
+    void drawScrollingBitmap(const uint8_t* bitmap, uint16_t bmpH, uint16_t scrollOffset);
     uint16_t width();
     uint16_t height();
 

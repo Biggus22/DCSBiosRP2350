@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
+set(PICO_BOARD weact_studio_rp2350b_core CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -49,7 +49,8 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AuralTone_RP2040_ProMicro.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_EngStart_RP2040_ProMicro_testing_light.cpp)
 # add_executable(DCSBiosRP2350 test_programs/DC_motor_MX1508_test.cpp)
-add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/Motor_C_MX1508_sweep.cpp)
+#add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/servo_sweep_test.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
  #add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
@@ -60,11 +61,16 @@ add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
 # add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
+# add_executable(DCSBiosRP2350 examples/General_RP2350_Examples/RP2350_Zero_RS485_Master.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_X27_DRV8833.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_X27_and_N20_gauges.cpp)
 
 #****** Test Programs *********
 # add_executable(DCSBiosRP2350 test_programs/swarm.cpp)
 # add_executable(DCSBiosRP2350 test_programs/LED_test.cpp)
-# add_executable(DCSBiosRP2350 test_programs/LED_test_auto.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_X27_and_N20_gauges.cpp)
+# add_executable(DCSBiosRP2350 test_programs/Motor_C_MX1508_sweep.cpp)
+add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_ST7789.cpp)
 # add_executable(DCSBiosRP2350 test_programs/MCP23S17_testing_sketch.cpp)
 # add_executable(DCSBiosRP2350 test_programs/ADS1115_example.cpp)
 # add_executable(DCSBiosRP2350 test_programs/PCF8575_example.cpp)
@@ -73,7 +79,7 @@ add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/rs485_arduino_framing_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/28BYJ48_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
+ # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
 
 
 

@@ -88,6 +88,7 @@ bool byj_init_gpio(byj_motor_t *motor, const byj_gpio_config_t *cfg, byj_step_mo
     motor->step_delay_us = 2000;
     motor->current_step_index = 0;
     motor->output_mode = BYJ_OUTPUT_UNIPOLAR;
+    motor->last_step_time_us = 0;
 
     gpio_init(motor->cfg.pin0);
     gpio_init(motor->cfg.pin1);
@@ -120,7 +121,7 @@ void byj_set_speed(byj_motor_t *motor, uint32_t delay_us) {
     motor->step_delay_us = delay_us;
 }
 
-static void byj_step_once(byj_motor_t *motor, int8_t dir) {
+void byj_step_once(byj_motor_t *motor, int8_t dir) {
     int seq_len = (motor->mode == BYJ_MODE_HALF) ? 8 : 4;
     if (dir > 0) {
         motor->current_step_index = (motor->current_step_index + 1) % seq_len;
@@ -148,12 +149,11 @@ void byj_set_position(byj_motor_t *motor, int32_t position) {
 }
 
 bool byj_update(byj_motor_t *motor) {
-    static uint64_t last_time = 0;
     if (!motor || !motor->initialized) return false;
     if (motor->current_position == motor->target_position) return false;
     uint64_t now = time_us_64();
-    if (now - last_time < motor->step_delay_us) return true;
-    last_time = now;
+    if (now - motor->last_step_time_us < motor->step_delay_us) return true;
+    motor->last_step_time_us = now;
     int8_t dir = (motor->target_position > motor->current_position) ? 1 : -1;
     byj_step_once(motor, dir);
     return motor->current_position != motor->target_position;

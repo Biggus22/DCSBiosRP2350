@@ -45,6 +45,7 @@ typedef struct {
     uint32_t step_delay_us;   // microseconds between steps
     uint8_t current_step_index;
     bool initialized;
+    uint64_t last_step_time_us; // per-motor timing for byj_update()
 } byj_motor_t;
 
 // Initialize for direct GPIO drive (ULN2003 inputs). Pins are the 4 input pins from ULN2003.
@@ -71,6 +72,9 @@ void byj_set_output_mode(byj_motor_t *motor, int output_mode);
 
 // De-energize coils
 void byj_sleep(byj_motor_t *motor);
+
+// Step once in the given direction (-1 or +1). For advanced use (e.g. homing).
+void byj_step_once(byj_motor_t *motor, int8_t dir);
 
 #ifdef __cplusplus
 }

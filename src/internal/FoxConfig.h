@@ -9,7 +9,7 @@
 #define WATCHDOG_TIMEOUT 5000
 
 // ==== Validate board type ====
-#if !defined(FOX1_BOARD) && !defined(FOX2_BOARD) && !defined(PICO_BOARD) && !defined(WAVESHARE_RP2040_ZERO_BOARD) && !defined(_0XCB_HELIOS_BOARD)
+#if !defined(FOX1_BOARD) && !defined(FOX2_BOARD) && !defined(PICO_BOARD) && !defined(WAVESHARE_RP2040_ZERO_BOARD) && !defined(_0XCB_HELIOS_BOARD) && !defined(WEACT_RP2350B_CORE)
     #error "You must define FOX1_BOARD or FOX2_BOARD before including Fox.h"
 #endif
 
@@ -159,6 +159,13 @@
     #define ENCODER3_A 15
     #define ENCODER3_B 16
     #define ENCODER3_SW 17
+
+#elif defined(WEACT_RP2350B_CORE)
+    #define HEARTBEAT_LED 25
+
+    #define UART0_TX 0
+    #define UART0_RX 1
+    #define RS485_EN 2
 
 #elif defined(PICO_BOARD) //comment out pins as required here.
     #define HEARTBEAT_LED 16

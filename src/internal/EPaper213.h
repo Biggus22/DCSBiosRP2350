@@ -35,6 +35,7 @@ public:
     bool process();
     void sleep();
     void clearMargin(uint8_t pixels = 32);
+    void refreshWindow(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t* buffer);
 
     // Default pins mapped to GPIO0–15 for Waveshare RP2040-Zero (SPI1 SCK=10, MOSI=11) to avoid UART0/I2C lines
     static constexpr Epaper213Pins defaultPins() {

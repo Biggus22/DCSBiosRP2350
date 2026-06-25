@@ -289,6 +289,49 @@ bool Epaper213::process() {
     return true;
 }
 
+void Epaper213::refreshWindow(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t* buffer) {
+    if (!initialized_ || !buffer) return;
+    if (gpio_get(pins_.busy)) return;
+
+    if (x >= width || y >= height) return;
+    w = std::min(w, static_cast<uint8_t>(width - x));
+    h = std::min(h, static_cast<uint8_t>(height - y));
+    if (w == 0 || h == 0) return;
+
+    const uint8_t xByteStart = static_cast<uint8_t>(x / 8);
+    const uint8_t xByteEnd = static_cast<uint8_t>((x + w - 1) / 8);
+    const uint8_t windowBytesPerRow = xByteEnd - xByteStart + 1;
+
+    const uint8_t xStartPix = static_cast<uint8_t>(xByteStart * 8);
+    const uint8_t xEndPix = std::min(static_cast<uint8_t>(xByteEnd * 8 + 7), static_cast<uint8_t>(width - 1));
+    const uint8_t yEnd = static_cast<uint8_t>(std::min(static_cast<uint16_t>(y + h - 1), static_cast<uint16_t>(height - 1)));
+
+    setWindows(xStartPix, y, xEndPix, yEnd);
+    setCursor(xStartPix, y);
+
+    const size_t bytesPerRow = static_cast<size_t>((width + 7) / 8);
+
+    sendCommand(0x26);
+    for (uint8_t row = 0; row < h; row++) {
+        const size_t srcOffset = static_cast<size_t>(y + row) * bytesPerRow + xByteStart;
+        sendData(previousFrameBuffer + srcOffset, windowBytesPerRow);
+    }
+
+    setCursor(xStartPix, y);
+    sendCommand(0x24);
+    for (uint8_t row = 0; row < h; row++) {
+        const size_t srcOffset = static_cast<size_t>(y + row) * bytesPerRow + xByteStart;
+        sendData(buffer + srcOffset, windowBytesPerRow);
+    }
+
+    refresh(0xFF);
+
+    for (uint8_t row = 0; row < h; row++) {
+        const size_t dstOffset = static_cast<size_t>(y + row) * bytesPerRow + xByteStart;
+        memcpy(previousFrameBuffer + dstOffset, buffer + dstOffset, windowBytesPerRow);
+    }
+}
+
 void Epaper213::sleep() {
     if (!initialized_) return;
     sendCommand(0x10);

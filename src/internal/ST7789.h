@@ -16,6 +16,7 @@ public:
     void drawChar(uint16_t x, uint16_t y, char c, uint16_t color);
     void drawStringScaled(uint16_t x, uint16_t y, const char* s, uint16_t color, uint8_t scale);
     void setRotation(uint8_t m);
+    void setInversion(bool on);
     void drawString(uint16_t x, uint16_t y, const char* s, uint16_t color);
     // Set backlight brightness (0..255). Uses PWM on the BL pin.
     void setBacklight(uint8_t level);
@@ -37,6 +38,14 @@ public:
     // Draw a scrolling bitmap: display shows a 320px-tall window into the bitmap
     // at vertical offset `scrollOffset`. Bitmap width must match display width.
     void drawScrollingBitmap(const uint8_t* bitmap, uint16_t bmpH, uint16_t scrollOffset);
+    // Draw a scaled/scrolled region of a bitmap at an arbitrary position & size.
+    // Nearest-neighbour downscale if dstW < bmpW.
+    // If dispH > 0, the source bitmap is logically scaled to dispH rows (for
+    // aspect-ratio preservation) and scrollOffset is in that space.
+    void drawScrollingBitmapRegion(uint16_t dstX, uint16_t dstY,
+                                   uint16_t dstW, uint16_t dstH,
+                                   const uint8_t* bitmap, uint16_t bmpW, uint16_t bmpH,
+                                   uint16_t scrollOffset, uint16_t dispH = 0);
     uint16_t width();
     uint16_t height();
 

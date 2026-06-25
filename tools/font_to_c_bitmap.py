@@ -68,6 +68,10 @@ def pack_bitmap(glyphs, height):
 def write_header(out_path, glyphs, widths, packed, height, chars):
     first = ord(chars[0])
     count = len(chars)
+    # Build a char→index map for all 256 ASCII values (255 = not found)
+    char_map = [255] * 256
+    for idx, ch in enumerate(chars):
+        char_map[ord(ch)] = idx
     with open(out_path, 'w') as f:
         f.write('// Auto-generated MS33558 numeric font header\n')
         f.write('#pragma once\n\n')
@@ -76,6 +80,11 @@ def write_header(out_path, glyphs, widths, packed, height, chars):
         f.write(f'static const uint8_t MS33558_48_first_char = {first};\n')
         f.write(f'static const uint8_t MS33558_48_glyph_count = {count};\n')
         f.write('\n')
+        f.write('// char_map[ascii] = glyph index, 255 = not found\n')
+        f.write('static const uint8_t MS33558_48_char_map[256] = {\n')
+        for i in range(0, 256, 16):
+            f.write('  ' + ', '.join(f'{c:3d}' for c in char_map[i:i+16]) + ',\n')
+        f.write('};\n\n')
         f.write('static const uint8_t MS33558_48_glyph_widths[] = {\n')
         f.write('  ' + ', '.join(str(w) for w in widths) + '\n};\n\n')
         # flatten bitmap and indexes

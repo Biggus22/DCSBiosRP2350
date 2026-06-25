@@ -268,7 +268,7 @@ build/pico-sdk/src/rp2_common/tinyusb/cmake_install.cmake
 build/pico-sdk/tools/cmake_install.cmake
 
 # Ignore reference repositories folder
-@Reference\ repositories/
+Reference\ repositories/
 
 # Ignore vendored dcs-bios Arduino library
 dcs-bios-arduino-library-0.3.12/
@@ -281,3 +281,4 @@ FUTURE_DRIVER_EXTRACTION_TODOS.md
 LEFT_SUBPANEL_PINMAP.md
 VID6606 manual 060927.pdf
 DataAnalysisExpert/added_addresses_11_2.txt
+.opencode/plans/enchanted-plotting-compass.md

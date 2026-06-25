@@ -79,6 +79,7 @@ namespace DcsBios {
 				case 26: adc_channel_ = 0; break;
 				case 27: adc_channel_ = 1; break;
 				case 28: adc_channel_ = 2; break;
+				case 29: adc_channel_ = 3; break;
 				default: adc_channel_ = 0; break; // fallback
 			}
 
@@ -162,6 +163,7 @@ namespace DcsBios {
 				case 26: adc_channel_ = 0; break;
 				case 27: adc_channel_ = 1; break;
 				case 28: adc_channel_ = 2; break;
+				case 29: adc_channel_ = 3; break;
 				default: adc_channel_ = 0; break;
 			}
 			adc_gpio_init(gpio_pin_);
@@ -244,6 +246,7 @@ namespace DcsBios {
 				case 26: adc_channel_ = 0; break;
 				case 27: adc_channel_ = 1; break;
 				case 28: adc_channel_ = 2; break;
+				case 29: adc_channel_ = 3; break;
 				default: adc_channel_ = 0; break;
 			}
 			adc_gpio_init(gpio_pin_);

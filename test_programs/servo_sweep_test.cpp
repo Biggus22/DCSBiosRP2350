@@ -14,25 +14,25 @@
 #include "internal/BoardMode.h"
 
 // ========================= User-configurable settings =========================
-static constexpr uint SERVO_PIN = 16; // GPIO pin for the test servo signal wire.
+static constexpr uint SERVO_PIN = 17; // GPIO pin for the test servo signal wire.
 
 static constexpr bool ENABLE_STARTUP_SWEEP = true; // true = run startup sweep, false = skip.
-static constexpr uint16_t SWEEP_MIN_US = 400; // Startup sweep minimum pulse width in microseconds.
-static constexpr uint16_t SWEEP_MAX_US = 2400; // Startup sweep maximum pulse width in microseconds.
+static constexpr uint16_t SWEEP_MIN_US = 300; // Startup sweep minimum pulse width in microseconds.
+static constexpr uint16_t SWEEP_MAX_US = 3200; // Startup sweep maximum pulse width in microseconds.
 static constexpr uint16_t SWEEP_STEP_US = 20; // Startup sweep increment per step in microseconds.
-static constexpr uint16_t SWEEP_STEP_DELAY_MS = 8; // Delay between sweep steps in milliseconds.
-static constexpr uint16_t SWEEP_END_PAUSE_MS = 2000; // Pause at each sweep endpoint (min and max).
+static constexpr uint16_t SWEEP_STEP_DELAY_MS = 6; // Delay between sweep steps in milliseconds.
+static constexpr uint16_t SWEEP_END_PAUSE_MS = 1000; // Pause at each sweep endpoint (min and max).
 
 static constexpr bool ENABLE_SERIAL_RANGE_TUNER = true; // true = enter serial tuning mode before DCS starts.
 static constexpr uint16_t SERIAL_TUNER_START_US = SWEEP_MIN_US; // Initial pulse width when tuner starts.
-static constexpr uint16_t SERIAL_TUNER_MIN_US = 400; // Lowest allowed pulse while tuning.
-static constexpr uint16_t SERIAL_TUNER_MAX_US = 3200; // Highest allowed pulse while tuning.
-static constexpr uint16_t SERIAL_TUNER_STEP_US = 10; // Pulse change per 'u' (up) or 'd' (down) command.
+static constexpr uint16_t SERIAL_TUNER_MIN_US = 300; // Lowest allowed pulse while tuning.
+static constexpr uint16_t SERIAL_TUNER_MAX_US = 3500; // Highest allowed pulse while tuning.
+static constexpr uint16_t SERIAL_TUNER_STEP_US = 100; // Pulse change per 'u' (up) or 'd' (down) command.
 static constexpr uint16_t SERIAL_TUNER_POLL_DELAY_MS = 2; // Idle polling delay for serial input.
 static constexpr size_t SERIAL_TUNER_CMD_BUFFER_LEN = 40; // Max serial command length for tuner parsing.
 
-static constexpr int DCS_SERVO_MIN_US = 400; // DCS mapping minimum pulse width in microseconds.
-static constexpr int DCS_SERVO_MAX_US = 2400; // DCS mapping maximum pulse width in microseconds.
+static constexpr int DCS_SERVO_MIN_US = 200; // DCS mapping minimum pulse width in microseconds.
+static constexpr int DCS_SERVO_MAX_US = 3200; // DCS mapping maximum pulse width in microseconds.
 static constexpr unsigned int DCS_PLT_PNEUMATIC_GAUGE_ADDR = 0x2aea; // DCS-BIOS address for the gauge.
 
 static constexpr uint8_t BOARD_ADDRESS = 0xF; // 0xF = standalone USB mode in this project.
@@ -144,6 +144,7 @@ static void processSerialTunerCommand(const char* commandText, uint16_t* current
 
     bool updated = false;
     char cmd = static_cast<char>(tolower(static_cast<unsigned char>(*commandText)));
+    printf("DEBUG: cmd='%c', text='%s'\n", cmd, commandText);
 
     switch (cmd) {
     case 'u':
@@ -164,6 +165,7 @@ static void processSerialTunerCommand(const char* commandText, uint16_t* current
         break;
     case 'p':
         printf("Current pulse: %u us\n", *currentPulseUs);
+        fflush(stdout);
         break;
     case 'm':
         printf("Min suggestion -> SWEEP_MIN_US=%u, DCS_SERVO_MIN_US=%u\n", *currentPulseUs, *currentPulseUs);
@@ -190,6 +192,7 @@ static void processSerialTunerCommand(const char* commandText, uint16_t* current
         if (clamped != requestedPulseUs) {
             printf("Requested %u us clamped to %u us (limits %u..%u)\n", requestedPulseUs, clamped, SERIAL_TUNER_MIN_US, SERIAL_TUNER_MAX_US);
         }
+        printf("DEBUG: s case, requested=%u, clamped=%u, current=%u\n", requestedPulseUs, clamped, *currentPulseUs);
         updated = (clamped != *currentPulseUs);
         *currentPulseUs = clamped;
         break;
@@ -206,6 +209,7 @@ static void processSerialTunerCommand(const char* commandText, uint16_t* current
         } else {
             printf("Unknown command: %s\n", commandText);
             printf("Type h for help.\n");
+            fflush(stdout);
         }
         break;
     }
@@ -214,6 +218,7 @@ static void processSerialTunerCommand(const char* commandText, uint16_t* current
     if (updated) {
         setServoPulseUs(SERVO_PIN, *currentPulseUs);
         printf("Pulse: %u us\n", *currentPulseUs);
+        fflush(stdout);
     }
 }
 

@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
+set(PICO_BOARD pico2 CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -86,7 +86,8 @@ pico_sdk_init()
 #add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
 # add_executable(DCSBiosRP2350 test_programs/epaper_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/X27_DRV8833_test.cpp)
-add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_led_demo.cpp)
+# add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_led_demo.cpp)
+# add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_switec_demo.cpp)
 # add_executable(DCSBiosRP2350 test_programs/i2c_frame_unittest.cpp)
 
 pico_set_program_name(DCSBiosRP2350 "DCSBiosRP2350")

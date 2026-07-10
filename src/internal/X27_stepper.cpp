@@ -33,40 +33,47 @@ static inline void x27_vid_set_outputs_enabled(x27_motor_t *motor, bool enabled)
     }
 }
 
-// Full step sequence (4 steps per cycle)
+// Full step sequence (4 steps per cycle).
+// Each entry is {IN1_A, IN2_A, IN1_B, IN2_B} for two H-bridge channels
+// (e.g. DRV8833). FWD=(1,0), REV=(0,1), BRAKE=(1,1), COAST=(0,0).
 static const uint8_t FULL_STEP_SEQUENCE[4][4] = {
-    {1, 0, 1, 0},  // Step 0
-    {1, 0, 0, 1},  // Step 1
-    {0, 1, 0, 1},  // Step 2
-    {0, 1, 1, 0}   // Step 3
+    {1, 0, 1, 0},  // Step 0: Coil1=FWD, Coil2=FWD
+    {1, 0, 0, 1},  // Step 1: Coil1=FWD, Coil2=REV
+    {0, 1, 0, 1},  // Step 2: Coil1=REV, Coil2=REV
+    {0, 1, 1, 0}   // Step 3: Coil1=REV, Coil2=FWD
 };
 
 // Half step sequence (8 steps per cycle)
+// Intermediate positions use BRAKE (1,1) instead of COAST (0,0) to dampen
+// mechanical ringing via shorted-coil slow-decay on the DRV8833.
 static const uint8_t HALF_STEP_SEQUENCE[8][4] = {
-    {1, 0, 1, 0},  // Step 0
-    {1, 0, 0, 0},  // Step 1
-    {1, 0, 0, 1},  // Step 2
-    {0, 0, 0, 1},  // Step 3
-    {0, 1, 0, 1},  // Step 4
-    {0, 1, 0, 0},  // Step 5
-    {0, 1, 1, 0},  // Step 6
-    {0, 0, 1, 0}   // Step 7
+    {1, 0, 1, 0},  // Step 0: Coil1=FWD, Coil2=FWD
+    {1, 0, 1, 1},  // Step 1: Coil1=FWD, Coil2=BRAKE
+    {1, 0, 0, 1},  // Step 2: Coil1=FWD, Coil2=REV
+    {1, 1, 0, 1},  // Step 3: Coil1=BRAKE, Coil2=REV
+    {0, 1, 0, 1},  // Step 4: Coil1=REV, Coil2=REV
+    {0, 1, 1, 1},  // Step 5: Coil1=REV, Coil2=BRAKE
+    {0, 1, 1, 0},  // Step 6: Coil1=REV, Coil2=FWD
+    {1, 1, 1, 0}   // Step 7: Coil1=BRAKE, Coil2=FWD
 };
 
-// Micro step sequence (12 steps per cycle - 1/3 step)
+// Micro step sequence (12 steps per cycle — 1/3 step resolution with pure GPIO).
+// With digital-only outputs this replicates full-step states with extra dwell
+// ticks. True 1/3 stepping requires PWM (not yet implemented for this driver).
+// Format: {IN1_A, IN2_A, IN1_B, IN2_B} per H-bridge (e.g. DRV8833).
 static const uint8_t MICRO_STEP_SEQUENCE[12][4] = {
-    {1, 0, 1, 0},  // Step 0
-    {1, 0, 1, 0},  // Step 1
-    {1, 0, 0, 1},  // Step 2
-    {1, 0, 0, 1},  // Step 3
-    {0, 1, 0, 1},  // Step 4
-    {0, 1, 0, 1},  // Step 5
-    {0, 1, 1, 0},  // Step 6
-    {0, 1, 1, 0},  // Step 7
-    {1, 0, 1, 0},  // Step 8 (wraps around)
-    {1, 0, 1, 0},  // Step 9
-    {1, 0, 0, 1},  // Step 10
-    {1, 0, 0, 1}   // Step 11
+    {1, 0, 1, 0},  // Step 0:  Coil1=FWD, Coil2=FWD
+    {1, 0, 1, 0},  // Step 1:  (dwell)
+    {1, 0, 0, 1},  // Step 2:  Coil1=FWD, Coil2=REV
+    {1, 0, 0, 1},  // Step 3:  (dwell)
+    {0, 1, 0, 1},  // Step 4:  Coil1=REV, Coil2=REV
+    {0, 1, 0, 1},  // Step 5:  (dwell)
+    {0, 1, 1, 0},  // Step 6:  Coil1=REV, Coil2=FWD
+    {0, 1, 1, 0},  // Step 7:  (dwell)
+    {1, 0, 1, 0},  // Step 8:  Coil1=FWD, Coil2=FWD (cycle restarts)
+    {1, 0, 1, 0},  // Step 9:  (dwell)
+    {1, 0, 0, 1},  // Step 10: Coil1=FWD, Coil2=REV
+    {1, 0, 0, 1}   // Step 11: (dwell)
 };
 
 // Internal helper functions
@@ -102,7 +109,7 @@ static uint32_t x27_ramped_delay_us(const x27_motor_t *motor) {
     int32_t remaining = motor->target_position - motor->current_position;
     if (remaining < 0) remaining = -remaining;
 
-    const uint32_t ramp_steps = 36;
+    uint32_t ramp_steps = (motor->ramp_steps > 0) ? motor->ramp_steps : 36;
     uint32_t cruise_delay = motor->step_delay_us;
     uint32_t max_extra_delay = cruise_delay;
 
@@ -213,6 +220,8 @@ bool x27_init_gpio(x27_motor_t *motor, const x27_gpio_config_t *config, x27_step
     motor->homing_pin = -1;
     motor->homing_active_high = false;
     motor->homing_configured = false;
+    motor->max_position = 0;
+    motor->ramp_steps = 0;
     
     // Initialize GPIO pins
     gpio_init(config->pin_coil1_a);
@@ -224,7 +233,14 @@ bool x27_init_gpio(x27_motor_t *motor, const x27_gpio_config_t *config, x27_step
     gpio_set_dir(config->pin_coil1_b, GPIO_OUT);
     gpio_set_dir(config->pin_coil2_a, GPIO_OUT);
     gpio_set_dir(config->pin_coil2_b, GPIO_OUT);
-    
+
+    // Apply initial coil hold (sequence[0] = both coils FWD)
+    // Prevents the motor starting from a de-energized state on first step
+    gpio_put(config->pin_coil1_a, 1);
+    gpio_put(config->pin_coil1_b, 0);
+    gpio_put(config->pin_coil2_a, 1);
+    gpio_put(config->pin_coil2_b, 0);
+
     motor->initialized = true;
     return true;
 }
@@ -250,6 +266,8 @@ bool x27_init_vid6606(x27_motor_t *motor, const x27_vid6606_config_t *config, x2
     motor->homing_pin = -1;
     motor->homing_active_high = false;
     motor->homing_configured = false;
+    motor->max_position = 0;
+    motor->ramp_steps = 0;
     
     // Initialize step and direction pins
     gpio_init(config->pin_step);
@@ -332,8 +350,9 @@ void x27_home_to_stop(x27_motor_t *motor, int8_t dir, uint32_t max_steps) {
 }
 
 void x27_home(x27_motor_t *motor) {
-    // Sweep to zero by moving counter-clockwise beyond limits
-    motor->target_position = -X27_MAX_POSITION;
+    if (!motor) return;
+    int32_t limit = (motor->max_position > 0) ? motor->max_position : X27_MAX_POSITION;
+    motor->target_position = -limit;
     x27_wait_complete(motor);
     motor->current_position = 0;
     motor->target_position = 0;
@@ -342,7 +361,8 @@ void x27_home(x27_motor_t *motor) {
 void x27_set_position(x27_motor_t *motor, int32_t position) {
     if (!motor) return;
     if (position < 0) position = 0;
-    if (position > X27_MAX_POSITION) position = X27_MAX_POSITION;
+    int32_t limit = (motor->max_position > 0) ? motor->max_position : X27_MAX_POSITION;
+    if (position > limit) position = limit;
     motor->target_position = position;
 }
 
@@ -424,6 +444,16 @@ void x27_set_speed(x27_motor_t *motor, uint32_t delay_us) {
     if (!motor) return;
     if (delay_us < X27_MIN_STEP_US) delay_us = X27_MIN_STEP_US;
     motor->step_delay_us = delay_us;
+}
+
+void x27_set_max_position(x27_motor_t *motor, int32_t max_pos) {
+    if (!motor) return;
+    motor->max_position = max_pos;
+}
+
+void x27_set_ramp_steps(x27_motor_t *motor, uint32_t steps) {
+    if (!motor) return;
+    motor->ramp_steps = steps;
 }
 
 void x27_set_direction_inverted(x27_motor_t *motor, bool inverted) {

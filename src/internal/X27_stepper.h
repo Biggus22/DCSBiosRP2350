@@ -67,12 +67,16 @@ typedef enum {
     X27_DRIVER_VID6606 = 1    // VID6606/STI6606 step/direction control
 } x27_driver_type_t;
 
-// GPIO configuration for direct drive
+// GPIO configuration for H-bridge drivers (e.g. DRV8833, MX1508).
+// Each coil uses 2 GPIO pins mapping to the driver's IN1/IN2 inputs:
+//   pin_coil1_a -> IN1 (H-bridge 1), pin_coil1_b -> IN2 (H-bridge 1)
+//   pin_coil2_a -> IN1 (H-bridge 2), pin_coil2_b -> IN2 (H-bridge 2)
+// Drive states: (1,0)=forward, (0,1)=reverse, (1,1)=brake, (0,0)=coast
 typedef struct {
-    uint pin_coil1_a;  // Coil 1, phase A
-    uint pin_coil1_b;  // Coil 1, phase B
-    uint pin_coil2_a;  // Coil 2, phase A
-    uint pin_coil2_b;  // Coil 2, phase B
+    uint pin_coil1_a;
+    uint pin_coil1_b;
+    uint pin_coil2_a;
+    uint pin_coil2_b;
 } x27_gpio_config_t;
 
 // VID6606 configuration (step/direction control)
@@ -105,6 +109,11 @@ typedef struct {
     int8_t ramp_last_direction;
     uint32_t ramp_steps_taken;
     bool ramp_active;
+    // Per-instance position limit. 0 = use default X27_MAX_POSITION.
+    // Allows multi-rotation travel or reduced range per motor.
+    int32_t max_position;
+    // Per-instance acceleration ramp. 0 = use default (36 steps).
+    uint32_t ramp_steps;
     // Homing sensor configuration (optional)
     int homing_pin;           // GPIO pin for homing sensor (or -1 if unused)
     bool homing_active_high;  // true if sensor asserts high
@@ -114,7 +123,9 @@ typedef struct {
 // Function declarations
 
 /**
- * Initialize a motor with direct GPIO control
+ * Initialize a motor with direct GPIO control (H-bridge drivers like DRV8833).
+ * The coil patterns drive IN1/IN2 per H-bridge: forward (1,0), reverse (0,1),
+ * brake (1,1), coast (0,0).
  */
 bool x27_init_gpio(x27_motor_t *motor, const x27_gpio_config_t *config, x27_step_mode_t mode);
 
@@ -174,6 +185,18 @@ void x27_wait_complete(x27_motor_t *motor);
  * Set step delay in microseconds
  */
 void x27_set_speed(x27_motor_t *motor, uint32_t delay_us);
+
+/**
+ * Set per-motor position limit. Call after init, before set_position.
+ * Pass 0 to restore the default (X27_MAX_POSITION).
+ */
+void x27_set_max_position(x27_motor_t *motor, int32_t max_pos);
+
+/**
+ * Set per-motor acceleration ramp length in steps. Lower = faster acceleration.
+ * Pass 0 to restore default (36 steps).
+ */
+void x27_set_ramp_steps(x27_motor_t *motor, uint32_t steps);
 
 /**
  * Invert the logical direction used by x27_step/x27_update.

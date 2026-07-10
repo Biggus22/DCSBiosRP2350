@@ -12,6 +12,8 @@
 #include "hardware/pwm.h"
 #include "hardware/gpio.h"
 #include "src/internal/X27_stepper.h"
+#include "src/internal/ws2812.h"
+#include "src/internal/FoxConfig.h"
 
 namespace {
 
@@ -19,6 +21,10 @@ constexpr uint DRV8833_COIL1_PIN = 3;
 constexpr uint DRV8833_COIL2_PIN = 4;
 constexpr uint DRV8833_COIL3_PIN = 5;
 constexpr uint DRV8833_COIL4_PIN = 6;
+constexpr uint DRV8833_MOTORB_COIL1_PIN = 9;
+constexpr uint DRV8833_MOTORB_COIL2_PIN = 10;
+constexpr uint DRV8833_MOTORB_COIL3_PIN = 11;
+constexpr uint DRV8833_MOTORB_COIL4_PIN = 12;
 constexpr int HOMING_SENSOR_PIN = 7;
 constexpr uint BACKLIGHT_PWM_PIN = 8;
 
@@ -36,6 +42,11 @@ constexpr uint BACKLIGHT_PWM_PIN = 8;
 // Increase this value to smooth out stepping vibration and reduce EMI.
 #ifndef X27_TUNING_MAIN_DELAY_US
 #define X27_TUNING_MAIN_DELAY_US 3000
+#endif
+
+// **TUNING: Motor B step delay (separate from Motor A for independent speed)**
+#ifndef X27_TUNING_MOTORB_DELAY_US
+#define X27_TUNING_MOTORB_DELAY_US 500
 #endif
 
 // **TUNING: Full-rotation support**
@@ -65,12 +76,59 @@ constexpr uint BACKLIGHT_PWM_PIN = 8;
 #define X27_HALL_OFFSET_REVERSE_STEPS 0
 #endif
 
+// **HALL SENSOR TEST (no motor movement)**
+// Uncomment to run hall sensor diagnostic only — skips all motor code.
+// Prints state changes on GPIO7 and flashes WS2812 purple when active.
+ //#define X27_HALL_SENSOR_TEST
+
 }  // namespace
 
 int main() {
     stdio_init_all();
     sleep_ms(2000); // give host time to open the serial monitor after reboot
 
+#ifdef X27_HALL_SENSOR_TEST
+    // === Hall Sensor Test (no motor movement) ===
+    printf("X27 Hall Sensor Test\n");
+    printf("GPIO7 hall switch: active LOW (pull-up enabled)\n");
+    printf("WS2812 = purple when active, off when inactive\n");
+    printf("Move a magnet near the hall sensor to test.\n");
+
+    gpio_init(HOMING_SENSOR_PIN);
+    gpio_set_dir(HOMING_SENSOR_PIN, GPIO_IN);
+    gpio_pull_up(HOMING_SENSOR_PIN);
+
+    WS2812 onboardLed(pio0, 0, HEARTBEAT_LED, false);
+    bool ws2812_ok = onboardLed.begin(1);
+    if (ws2812_ok) {
+        onboardLed.clear();
+        onboardLed.show();
+        onboardLed.setBrightness(128);
+    } else {
+        printf("WS2812 init failed\n");
+    }
+
+    uint32_t purple = onboardLed.rgb(128, 0, 128);
+    uint32_t off = onboardLed.rgb(0, 0, 0);
+
+    int last_raw = -1;
+    while (true) {
+        int raw = gpio_get(HOMING_SENSOR_PIN);
+        bool active = (raw == 0);
+
+        if (raw != last_raw) {
+            printf("GPIO7=%d %s\n", raw, active ? "ACTIVE" : "INACTIVE");
+            last_raw = raw;
+        }
+
+        if (ws2812_ok) {
+            onboardLed.setPixel(0, active ? purple : off);
+            onboardLed.show();
+        }
+
+        sleep_ms(100);
+    }
+#else
     x27_motor_t motor;
     const x27_gpio_config_t cfg = {
         DRV8833_COIL1_PIN,
@@ -79,7 +137,7 @@ int main() {
         DRV8833_COIL4_PIN,
     };
 
-    printf("Initializing X27 DRV8833 (Motor A) on pins %u %u %u %u\n",
+    printf("Motor A: X27 on DRV8833 pins %u %u %u %u\n",
            cfg.pin_coil1_a,
            cfg.pin_coil1_b,
            cfg.pin_coil2_a,
@@ -91,8 +149,27 @@ int main() {
         return 1;
     }
 
-    // Reduce speed and sweep a safe limited range around center to avoid hitting mechanical stops
-    x27_set_speed(&motor, X27_TUNING_MAIN_DELAY_US);  // Tuned for low current and smooth motion
+    x27_set_speed(&motor, X27_TUNING_MAIN_DELAY_US);
+
+    // --- Motor B ---
+    x27_motor_t motorB;
+    const x27_gpio_config_t cfgB = {
+        DRV8833_MOTORB_COIL1_PIN,
+        DRV8833_MOTORB_COIL2_PIN,
+        DRV8833_MOTORB_COIL3_PIN,
+        DRV8833_MOTORB_COIL4_PIN,
+    };
+    printf("Initializing X27 DRV8833 (Motor B) on pins %u %u %u %u\n",
+           cfgB.pin_coil1_a, cfgB.pin_coil1_b,
+           cfgB.pin_coil2_a, cfgB.pin_coil2_b);
+    ok = x27_init_gpio(&motorB, &cfgB, X27_TUNING_STEP_MODE);
+    if (!ok) {
+        printf("Motor B init failed\n");
+        return 1;
+    }
+    x27_set_speed(&motorB, X27_TUNING_MOTORB_DELAY_US);
+    x27_set_max_position(&motorB, 2000);
+    x27_set_ramp_steps(&motorB, 5);
 
 #if X27_FULL_ROTATION_MODE
     printf("Full-rotation mode: Hall sensor homing required\n");
@@ -103,7 +180,7 @@ int main() {
     if (x27_config_homing_sensor(&motor, HOMING_SENSOR_PIN, SENSOR_ACTIVE_HIGH, true)) {
         printf("Homing sensor configured on pin %d (active low, pull-up enabled)\n", HOMING_SENSOR_PIN);
         // Search backward up to 4000 steps (covers full 1080-step range multiple times)
-        bool homed = x27_home_with_sensor(&motor, -1, 4000);
+        bool homed = x27_home_with_sensor(&motor, 1, 4000);
         if (homed) {
             printf("Homing: sensor triggered, position set to zero\n");
 #if X27_FULL_ROTATION_MODE
@@ -122,9 +199,14 @@ int main() {
         printf("Homing sensor configuration failed; skipping sensor homing\n");
     }
 
+    // Motor B has no hall sensor — home via mechanical stop
+    printf("Homing Motor B (mechanical stop)\n");
+    x27_home_to_stop(&motorB, 1, 632);
+    printf("Motor B homed to stop\n");
+
     const int32_t FULL_MAX = X27_MAX_POSITION;
     int32_t min_pos = 0;
-    int32_t max_pos = FULL_MAX;
+    int32_t max_pos = 632;
 
 #if X27_FULL_ROTATION_MODE
     // Full rotation: allow 0 to 1080 after zeroing
@@ -142,12 +224,14 @@ int main() {
 
     printf("Using sweep range %d .. %d\n", min_pos, max_pos);
 
-    // Prepare LEDs: onboard (sensor indicator) + external on GAUGE_BACKLIGHT/GPIO15 (fade)
-    const uint LED_PIN = PICO_DEFAULT_LED_PIN; // lights on sensor trigger
-    const uint LED_PIN_EXT = BACKLIGHT_PWM_PIN; // fades continuously
+    // Prepare LEDs: onboard (sensor indicator) + external on GAUGE_BACKLIGHT/GPIO8 (fade)
+#ifdef PICO_DEFAULT_LED_PIN
+    const uint LED_PIN = PICO_DEFAULT_LED_PIN;
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, 0);
+#endif
+    const uint LED_PIN_EXT = BACKLIGHT_PWM_PIN; // fades continuously
 
     gpio_set_function(LED_PIN_EXT, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(LED_PIN_EXT);
@@ -176,7 +260,9 @@ int main() {
             }
             last_raw = raw;
         }
+#ifdef PICO_DEFAULT_LED_PIN
         gpio_put(LED_PIN, active ? 1 : 0);
+#endif
         pwm_set_gpio_level(LED_PIN_EXT, active ? BACKLIGHT_ON_LEVEL : BACKLIGHT_OFF_LEVEL);
         sleep_ms(2);
     }
@@ -184,6 +270,7 @@ int main() {
     while (true) {
         printf("Sweep forward to %d\n", max_pos);
         x27_set_position(&motor, max_pos);
+        x27_set_position(&motorB, max_pos);
         // Monitor continuously during motion and report sensor triggers
         bool prev_active = motor.homing_configured ? (motor.homing_active_high ? (gpio_get(motor.homing_pin) != 0) : (gpio_get(motor.homing_pin) == 0)) : false;
         bool hall_window_open = prev_active;
@@ -191,11 +278,14 @@ int main() {
         if (prev_active) {
             printf("Hall sensor already active at forward sweep start: step=%ld\n", (long)motor.current_position);
         }
-        while (motor.current_position != motor.target_position) {
+        while (motor.current_position != motor.target_position || motorB.current_position != motorB.target_position) {
             x27_update(&motor);
+            x27_update(&motorB);
             if (motor.homing_configured) {
                 bool cur_active = motor.homing_active_high ? (gpio_get(motor.homing_pin) != 0) : (gpio_get(motor.homing_pin) == 0);
+#ifdef PICO_DEFAULT_LED_PIN
                 gpio_put(LED_PIN, cur_active ? 1 : 0); // mirror sensor level on onboard LED
+#endif
                 pwm_set_gpio_level(LED_PIN_EXT, cur_active ? BACKLIGHT_ON_LEVEL : BACKLIGHT_OFF_LEVEL);
                 if (cur_active && !prev_active) {
                     printf("Hall sensor detected at step %ld (forward sweep)\n", (long)motor.current_position);
@@ -207,9 +297,11 @@ int main() {
                     motor.target_position = motor.current_position; // stop movement immediately
 #endif
                     printf("Zero set at physical step %d\n", zero_offset);
+#ifdef PICO_DEFAULT_LED_PIN
                     gpio_put(LED_PIN, 1);
                     sleep_ms(120);
                     gpio_put(LED_PIN, 0);
+#endif
 #if X27_FULL_ROTATION_MODE
                     // Full rotation: use entire range (zero is just a reference)
                     min_pos = 0;
@@ -241,9 +333,11 @@ int main() {
             printf("Hall active window (forward): did not see falling edge before target (start=%ld)\n", (long)hall_window_start);
         }
         x27_sleep(&motor); // de-energize briefly at end
+        x27_sleep(&motorB);
 
         printf("Sweep back to %d\n", min_pos);
         x27_set_position(&motor, min_pos);
+        x27_set_position(&motorB, min_pos);
         // Monitor continuously during motion and report sensor triggers
         prev_active = motor.homing_configured ? (motor.homing_active_high ? (gpio_get(motor.homing_pin) != 0) : (gpio_get(motor.homing_pin) == 0)) : false;
         hall_window_open = prev_active;
@@ -251,11 +345,14 @@ int main() {
         if (prev_active) {
             printf("Hall sensor already active at reverse sweep start: step=%ld\n", (long)motor.current_position);
         }
-        while (motor.current_position != motor.target_position) {
+        while (motor.current_position != motor.target_position || motorB.current_position != motorB.target_position) {
             x27_update(&motor);
+            x27_update(&motorB);
             if (motor.homing_configured) {
                 bool cur_active = motor.homing_active_high ? (gpio_get(motor.homing_pin) != 0) : (gpio_get(motor.homing_pin) == 0);
+#ifdef PICO_DEFAULT_LED_PIN
                 gpio_put(LED_PIN, cur_active ? 1 : 0); // mirror sensor level on onboard LED
+#endif
                 pwm_set_gpio_level(LED_PIN_EXT, cur_active ? BACKLIGHT_ON_LEVEL : BACKLIGHT_OFF_LEVEL);
                 if (cur_active && !prev_active) {
                     printf("Hall sensor detected at step %ld (reverse sweep)\n", (long)motor.current_position);
@@ -267,9 +364,11 @@ int main() {
                     motor.target_position = motor.current_position;
 #endif
                     printf("Zero set at physical step %d\n", zero_offset);
+#ifdef PICO_DEFAULT_LED_PIN
                     gpio_put(LED_PIN, 1);
                     sleep_ms(120);
                     gpio_put(LED_PIN, 0);
+#endif
 #if X27_FULL_ROTATION_MODE
                     // Full rotation: use entire range (zero is just a reference)
                     min_pos = 0;
@@ -301,7 +400,9 @@ int main() {
             printf("Hall active window (reverse): did not see falling edge before target (start=%ld)\n", (long)hall_window_start);
         }
         x27_sleep(&motor);
+        x27_sleep(&motorB);
     }
+#endif
 
     return 0;
 }

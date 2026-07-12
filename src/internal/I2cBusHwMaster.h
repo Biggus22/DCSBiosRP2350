@@ -19,10 +19,10 @@ private:
     void init_();
 
 public:
-    I2cBusHwMaster(i2c_inst_t *i2c = i2c1,
-                   uint sda = I2C1_SDA,
-                   uint scl = I2C1_SCL,
-                   uint32_t baud = 400000);
+I2cBusHwMaster(i2c_inst_t *i2c = i2c1,
+               uint sda = I2C1_SDA,
+               uint scl = I2C1_SCL,
+               uint32_t baud = 100000);
 
     bool sendFrame(uint8_t addr, uint8_t reg, uint8_t cmd,
                    const uint8_t *data, uint8_t dataLen,

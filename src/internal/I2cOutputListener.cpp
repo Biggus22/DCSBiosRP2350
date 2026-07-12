@@ -53,7 +53,7 @@ void I2cOutputListener::loop() {
 }
 
 void I2cOutputListener::sendFrame_(uint8_t cmd, const uint8_t *data, uint8_t dataLen) {
-    bus_->sendFrame(slaveAddr_, regId_, cmd, data, dataLen, 100);
+    bus_->sendFrame(slaveAddr_, regId_, cmd, data, dataLen, 10);
 }
 
 } // namespace DcsBios

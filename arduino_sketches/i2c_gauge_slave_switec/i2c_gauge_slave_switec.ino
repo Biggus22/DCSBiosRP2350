@@ -67,8 +67,10 @@ static void onReceive(int howMany) {
     if (crc != frame[frameLen - 1]) return;
 
     if (reg == 0x01 && cmd == 0x01 && len == 2) {
-        // SET_POSITION: data = uint16_le step target
-        uint16_t target = frame[3] | (frame[4] << 8);
+        // SET_POSITION: data = uint16_le DCS-BIOS raw value (0-65535)
+        uint16_t rawValue = frame[3] | (frame[4] << 8);
+        uint16_t target = (uint16_t)(((uint32_t)rawValue * STEPS) / 65535);
+        if (target > STEPS) target = STEPS;
         motor1.setPosition(target);
     } else if (reg == 0x01 && cmd == 0x03 && len == 0) {
         // HOME_SWEEP: defer to loop() — zero() is blocking

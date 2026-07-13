@@ -12,26 +12,12 @@ I2cOutputListener::I2cOutputListener(unsigned int address,
       bus_(bus),
       slaveAddr_(slaveAddr),
       regId_(regId),
-      scaleMode_(scaleMode),
-      lastRawSent_(0xFFFF) {}
-
-bool I2cOutputListener::deadbandPass_(unsigned int raw) {
-    if (scaleMode_ == LED_TOGGLE || scaleMode_ == LED_BRIGHTNESS) {
-        return true;
-    }
-    uint16_t diff = (raw > lastRawSent_) ? (raw - lastRawSent_) : (lastRawSent_ - raw);
-    if (diff < 128) {
-        return false;
-    }
-    lastRawSent_ = raw;
-    return true;
-}
+      scaleMode_(scaleMode) {}
 
 void I2cOutputListener::loop() {
     if (!hasUpdatedData()) return;
 
     unsigned int raw = getData();
-    if (!deadbandPass_(raw)) return;
     uint8_t dataBuf[2];
     uint8_t dataLen = 0;
     uint8_t cmd = I2C_CMD_SET_POSITION;

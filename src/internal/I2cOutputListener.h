@@ -28,7 +28,9 @@ private:
     uint8_t slaveAddr_;
     uint8_t regId_;
     ScaleMode scaleMode_;
+    uint16_t lastRawSent_;
 
+    bool deadbandPass_(unsigned int raw);
     void sendFrame_(uint8_t cmd, const uint8_t *data, uint8_t dataLen);
 };
 

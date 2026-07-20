@@ -29,17 +29,20 @@ void I2cOutputListener::loop() {
             break;
 
         case LED_BRIGHTNESS:
+            // Scale DCS-BIOS 16-bit value (0-65535) to 8-bit PWM brightness (0-255)
             dataBuf[0] = (uint8_t)((raw * 255) / 65535);
             dataLen = 1;
             break;
 
         case STEPS_16BIT:
+            // Pass 16-bit raw value as little-endian: low byte first, high byte second
             dataBuf[0] = raw & 0xFF;
             dataBuf[1] = (raw >> 8) & 0xFF;
             dataLen = 2;
             break;
 
         case ANGLE_CENTIDEG: {
+            // Scale DCS-BIOS 16-bit value (0-65535) to Switec centidegrees (0-31500)
             uint16_t angle = (uint16_t)((raw * 31500) / 65535);
             dataBuf[0] = angle & 0xFF;
             dataBuf[1] = (angle >> 8) & 0xFF;

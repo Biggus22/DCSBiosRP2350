@@ -47,11 +47,11 @@ uint8_t i2cFrame_encode(uint8_t *outBuf, uint8_t reg, uint8_t cmd,
                          const uint8_t *data, uint8_t dataLen) {
     if (dataLen > I2C_FRAME_MAX_PAYLOAD) return 0;
 
-    outBuf[0] = reg;
-    outBuf[1] = cmd;
-    outBuf[2] = dataLen;
+    outBuf[I2C_FRAME_IDX_REG]  = reg;
+    outBuf[I2C_FRAME_IDX_CMD]  = cmd;
+    outBuf[I2C_FRAME_IDX_LEN]  = dataLen;
     for (uint8_t i = 0; i < dataLen; i++) {
-        outBuf[3 + i] = data[i];
+        outBuf[I2C_FRAME_IDX_DATA + i] = data[i];
     }
     uint8_t total = dataLen + I2C_FRAME_OVERHEAD;
     outBuf[total - 1] = i2cFrame_crc8(outBuf, total - 1);
@@ -63,15 +63,15 @@ bool i2cFrame_decode(const uint8_t *inBuf, uint8_t inLen,
                       const uint8_t **outData, uint8_t *outDataLen) {
     if (inLen < I2C_FRAME_OVERHEAD) return false;
 
-    uint8_t len = inBuf[2];
+    uint8_t len = inBuf[I2C_FRAME_IDX_LEN];
     if (inLen != (uint8_t)(len + I2C_FRAME_OVERHEAD)) return false;
 
     uint8_t crc = i2cFrame_crc8(inBuf, inLen - 1);
     if (crc != inBuf[inLen - 1]) return false;
 
-    *outReg = inBuf[0];
-    *outCmd = inBuf[1];
+    *outReg = inBuf[I2C_FRAME_IDX_REG];
+    *outCmd = inBuf[I2C_FRAME_IDX_CMD];
     *outDataLen = len;
-    *outData = (len > 0) ? &inBuf[3] : nullptr;
+    *outData = (len > 0) ? &inBuf[I2C_FRAME_IDX_DATA] : nullptr;
     return true;
 }

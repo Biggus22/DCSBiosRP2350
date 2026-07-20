@@ -76,8 +76,9 @@ static void onReceive(int howMany) {
     }
     if (crc != frame[frameLen - 1]) return;
 
-    if (reg == 0x01 && cmd == 0x01 && len == 2) {
-        uint16_t rawValue = frame[3] | (frame[4] << 8);
+    if (reg == REG_GAUGE && cmd == CMD_SET_POSITION && len == 2) {
+        // Reassemble 16-bit little-endian value from two bytes (low byte, high byte)
+        uint16_t rawValue = frame[FRAME_IDX_DATA] | (frame[FRAME_IDX_DATA + 1] << 8);
         uint16_t target = (uint16_t)(((uint32_t)rawValue * STEPS) / 65535);
         if (target > STEPS) target = STEPS;
 
@@ -94,7 +95,7 @@ static void onReceive(int howMany) {
         }
         lastTarget = target;
         motor1.setPosition(target);
-    } else if (reg == 0x01 && cmd == 0x03 && len == 0) {
+    } else if (reg == REG_GAUGE && cmd == CMD_HOME_SWEEP && len == 0) {
         // HOME_SWEEP: defer to loop() — motor1.zero() is blocking
         homeRequested = true;
     }

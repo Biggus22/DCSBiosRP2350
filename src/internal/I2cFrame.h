@@ -14,6 +14,12 @@ uint8_t i2cFrame_crc8(const uint8_t *data, uint8_t len);
 #define I2C_FRAME_OVERHEAD    4
 #define I2C_FRAME_MAX_SIZE   (I2C_FRAME_MAX_PAYLOAD + I2C_FRAME_OVERHEAD)
 
+// Frame field offsets within the wire buffer [reg][cmd][len][data...][crc8]
+#define I2C_FRAME_IDX_REG    0
+#define I2C_FRAME_IDX_CMD    1
+#define I2C_FRAME_IDX_LEN    2
+#define I2C_FRAME_IDX_DATA   3
+
 uint8_t i2cFrame_encode(uint8_t *outBuf, uint8_t reg, uint8_t cmd,
                          const uint8_t *data, uint8_t dataLen);
 

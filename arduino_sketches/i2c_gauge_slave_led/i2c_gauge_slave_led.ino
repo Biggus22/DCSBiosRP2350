@@ -16,6 +16,18 @@
 #include <Wire.h>
 #include <Arduino.h>
 
+// I2C frame field offsets — matches the master's I2cFrame wire format
+#define FRAME_IDX_REG     0
+#define FRAME_IDX_CMD     1
+#define FRAME_IDX_LEN     2
+#define FRAME_IDX_DATA    3
+
+// I2C commands — must match I2cCmd enum in I2cCommand.h
+#define CMD_SET_POSITION  0x01
+
+// Register ID for this gauge (matches master's regId)
+#define REG_GAUGE         0x01
+
 #define I2C_SLAVE_ADDRESS 0x08
 #define LED_PIN LED_BUILTIN
 
@@ -56,8 +68,8 @@ static void onReceive(int howMany) {
     }
     if (crc != frame[frameLen - 1]) return;
 
-    if (reg == 0x01 && cmd == 0x01 && len == 1) {
-        analogWrite(LED_PIN, frame[3]);
+    if (reg == REG_GAUGE && cmd == CMD_SET_POSITION && len == 1) {
+        analogWrite(LED_PIN, frame[FRAME_IDX_DATA]);
     }
 }
 

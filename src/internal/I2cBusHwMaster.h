@@ -10,6 +10,8 @@ namespace DcsBios {
 
 class I2cBusHwMaster : public I2cBus {
 private:
+    static constexpr uint32_t I2C_DEFAULT_BAUD = 100000;  // default I2C bus speed (100 kHz)
+
     i2c_inst_t *i2c_;
     uint sda_;
     uint scl_;
@@ -22,7 +24,7 @@ public:
 I2cBusHwMaster(i2c_inst_t *i2c = i2c1,
                uint sda = I2C1_SDA,
                uint scl = I2C1_SCL,
-               uint32_t baud = 100000);
+               uint32_t baud = I2C_DEFAULT_BAUD);
 
     bool sendFrame(uint8_t addr, uint8_t reg, uint8_t cmd,
                    const uint8_t *data, uint8_t dataLen,

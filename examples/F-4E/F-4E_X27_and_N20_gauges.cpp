@@ -19,7 +19,7 @@
 namespace {
 
 constexpr uint32_t RS485_BAUD = 250000;
-constexpr unsigned char RS485_SLAVE_ADDRESS = 0x01;
+constexpr unsigned char RS485_SLAVE_ADDRESS = 0xF;
 
 // Board pin assumptions from the current 3-driver gauge board:
 //   Motor A: X27 gauge on driver A

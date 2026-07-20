@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD weact_studio_rp2350b_core CACHE STRING "Board type")
+set(PICO_BOARD pico2 CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 

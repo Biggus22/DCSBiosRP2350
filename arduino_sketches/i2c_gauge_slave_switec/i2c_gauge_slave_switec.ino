@@ -18,8 +18,8 @@
 
 #include <Wire.h>
 #include <SwitecX25.h>
+#include "i2c_slave_defs.h"
 
-#define I2C_SLAVE_ADDRESS 0x08
 #define STEPS (315*3)  // 945 steps, 315° at 1/3 resolution
 
 SwitecX25 motor1(STEPS, 4, 5, 6, 7);
@@ -33,23 +33,6 @@ SwitecX25 motor1(STEPS, 4, 5, 6, 7);
 
 static int lastDirection = 0;   // 0=unknown, 1=forward, -1=backward
 static uint16_t lastTarget = 0;
-
-// --- CRC-8 (Dallas, poly 0x07, init 0x00) ---
-static uint8_t crc8_table[256];
-
-static void init_crc8_table() {
-    for (uint16_t i = 0; i < 256; i++) {
-        uint8_t crc = (uint8_t)i;
-        for (uint8_t j = 0; j < 8; j++) {
-            if (crc & 0x80) {
-                crc = (crc << 1) ^ 0x07;
-            } else {
-                crc <<= 1;
-            }
-        }
-        crc8_table[i] = crc;
-    }
-}
 
 static uint8_t frame[254];
 static uint8_t frameLen = 0;

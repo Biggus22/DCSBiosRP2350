@@ -32,12 +32,10 @@ static void onReceive(int howMany) {
     uint8_t reg = frame[0];
     uint8_t cmd = frame[1];
     uint8_t len = frame[2];
-    if (frameLen != (uint8_t)(len + 4)) return;
+    if (len > FRAME_MAX_PAYLOAD) return;
+    if (frameLen != (uint8_t)(len + FRAME_OVERHEAD)) return;
 
-    uint8_t crc = 0;
-    for (uint8_t i = 0; i < frameLen - 1; i++) {
-        crc = crc8_table[crc ^ frame[i]];
-    }
+    uint8_t crc = i2cFrame_crc8(frame, frameLen - 1);
     if (crc != frame[frameLen - 1]) return;
 
     if (reg == REG_GAUGE && cmd == CMD_SET_POSITION && len == 1) {
@@ -46,7 +44,6 @@ static void onReceive(int howMany) {
 }
 
 void setup() {
-    init_crc8_table();
     pinMode(LED_PIN, OUTPUT);
     Wire.begin(I2C_SLAVE_ADDRESS);
     Wire.onReceive(onReceive);

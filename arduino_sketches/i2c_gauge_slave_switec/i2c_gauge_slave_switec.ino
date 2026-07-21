@@ -41,6 +41,26 @@ static uint8_t frameLen = 0;
 // instead of the I2C ISR. Master sends cmd 0x03 (HOME_SWEEP) to trigger.
 static bool homeRequested = false;
 
+// --- SET_POSITION handler (split out of ISR for clarity) ---
+static void handleSetPosition(uint16_t rawValue) {
+    uint16_t target = (uint16_t)(((uint32_t)rawValue * STEPS) / 65535);
+    if (target > STEPS) target = STEPS;
+
+    // Direction-locked filter: prevent small direction reversals
+    // from jittering the motor against the acceleration ramp.
+    if (lastDirection >= 0 && target >= lastTarget) {
+        lastDirection = 1;
+    } else if (lastDirection <= 0 && target <= lastTarget) {
+        lastDirection = -1;
+    } else if (abs((int16_t)target - (int16_t)lastTarget) > DIR_FILTER_THRESHOLD) {
+        lastDirection = (target > lastTarget) ? 1 : -1;
+    } else {
+        return; // small reversal — ignore
+    }
+    lastTarget = target;
+    motor1.setPosition(target);
+}
+
 static void onReceive(int howMany) {
     frameLen = 0;
     while (Wire.available() && frameLen < sizeof(frame)) {
@@ -48,36 +68,19 @@ static void onReceive(int howMany) {
     }
     if (frameLen < 4) return;
 
-    uint8_t reg = frame[0];
-    uint8_t cmd = frame[1];
-    uint8_t len = frame[2];
-    if (frameLen != (uint8_t)(len + 4)) return;
+    uint8_t reg = frame[FRAME_IDX_REG];
+    uint8_t cmd = frame[FRAME_IDX_CMD];
+    uint8_t len = frame[FRAME_IDX_LEN];
+    if (len > FRAME_MAX_PAYLOAD) return;
+    if (frameLen != (uint8_t)(len + FRAME_OVERHEAD)) return;
 
-    uint8_t crc = 0;
-    for (uint8_t i = 0; i < frameLen - 1; i++) {
-        crc = crc8_table[crc ^ frame[i]];
-    }
+    uint8_t crc = i2cFrame_crc8(frame, frameLen - 1);
     if (crc != frame[frameLen - 1]) return;
 
     if (reg == REG_GAUGE && cmd == CMD_SET_POSITION && len == 2) {
         // Reassemble 16-bit little-endian value from two bytes (low byte, high byte)
         uint16_t rawValue = frame[FRAME_IDX_DATA] | (frame[FRAME_IDX_DATA + 1] << 8);
-        uint16_t target = (uint16_t)(((uint32_t)rawValue * STEPS) / 65535);
-        if (target > STEPS) target = STEPS;
-
-        // Direction-locked filter: prevent small direction reversals
-        // from jittering the motor against the acceleration ramp.
-        if (lastDirection >= 0 && target >= lastTarget) {
-            lastDirection = 1;
-        } else if (lastDirection <= 0 && target <= lastTarget) {
-            lastDirection = -1;
-        } else if (abs((int16_t)target - (int16_t)lastTarget) > DIR_FILTER_THRESHOLD) {
-            lastDirection = (target > lastTarget) ? 1 : -1;
-        } else {
-            return; // small reversal — ignore
-        }
-        lastTarget = target;
-        motor1.setPosition(target);
+        handleSetPosition(rawValue);
     } else if (reg == REG_GAUGE && cmd == CMD_HOME_SWEEP && len == 0) {
         // HOME_SWEEP: defer to loop() — motor1.zero() is blocking
         homeRequested = true;
@@ -85,7 +88,6 @@ static void onReceive(int howMany) {
 }
 
 void setup() {
-    init_crc8_table();
     Wire.begin(I2C_SLAVE_ADDRESS);
     Wire.onReceive(onReceive);
     motor1.zero();  // sweep to lower stop and reset counter

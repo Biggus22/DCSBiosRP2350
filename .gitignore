@@ -268,3 +268,12 @@ build/pico-sdk/src/rp2_common/tinyusb/cmake_install.cmake
 build/pico-sdk/tools/cmake_install.cmake
 DCSBiosPi/
 DCSBiosPi_repo/
+
+# Reference repositories (local research copies)
+Reference repositories/
+FUTURE_DRIVER_EXTRACTION_TODOS.md
+LEFT_SUBPANEL_PINMAP.md
+VID6606 manual 060927.pdf
+.github/agents/expert-cpp-software-engineer.agent.md
+.opencode/plans/enchanted-plotting-compass.md
+DataAnalysisExpert/added_addresses_11_2.txt

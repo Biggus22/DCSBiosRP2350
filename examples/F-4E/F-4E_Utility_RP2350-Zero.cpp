@@ -86,11 +86,19 @@ DcsBios::ServoOutput pltO2Liters(0x2b36, 11, 544, 2400);
 DcsBios::ServoOutput pltO2Pressure(0x2b34, 13, 544, 2400);
 
 // O2 mixture switch (2-position) on GPIO pins 12 and 10
-const uint8_t pltO2MixturePins[2] = {12, 10};
+const uint8_t pltO2MixturePins[2] = {12, 10}; 
 DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 2> pltO2Mixture("PLT_O2_MIXTURE", pltO2MixturePins);
 
+
 // O2 supply switch (2-position) on GPIO pin 14
-DcsBios::Switch2Pos pltO2Supply("PLT_O2_SUPPLY", 14, false);
+DcsBios::Switch2Pos pltO2Supply("PLT_O2_SUPPLY", 15, true);
+DcsBios::Switch2Pos pltO2Test("PLT_O2_TEST", 14);
+
+// Anti-skid switch (toggle) on GPIO28
+DcsBios::Switch2Pos pltGearAntiSkid("F_4E_PLT_GEAR_ANTI_SKID", 28);
+
+// Spare analog input available on GPIO26
+//spare analog connected on 27
 
 int main()
 {

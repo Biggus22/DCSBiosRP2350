@@ -277,3 +277,4 @@ VID6606 manual 060927.pdf
 .github/agents/expert-cpp-software-engineer.agent.md
 .opencode/plans/enchanted-plotting-compass.md
 DataAnalysisExpert/added_addresses_11_2.txt
+test_programs/gpio_scan.cpp

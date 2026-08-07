@@ -17,6 +17,23 @@
 #ifndef X27_STEPPER_H
 #define X27_STEPPER_H
 
+/*
+ * MODIFIED MOTOR NOTE:
+ * The default constants in this driver assume X27.168 motors with the internal
+ * mechanical limiter removed, allowing 360° rotation. Stock X27.168 motors have
+ * a 315° mechanical range.
+ *
+ * For unmodified (315°) motors:
+ *   - Set X27_STEPS_PER_REV to 945 (or (1080 * 315) / 360)
+ *   - Clamp x27_set_angle() input to 315° max
+ *   - Adjust x27_home_to_stop() limit for the shorter range
+ *
+ * For modified (360°) motors (this driver's default):
+ *   - X27_STEPS_PER_REV = 1080 covers full 360°
+ *   - x27_set_angle() accepts up to 360°
+ *   - x27_home_to_stop() default limit of 1300 steps exceeds one full revolution
+ */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"

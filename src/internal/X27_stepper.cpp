@@ -116,7 +116,15 @@ static uint32_t x27_ramped_delay_us(const x27_motor_t *motor) {
         decel_phase = ramp_steps - (uint32_t)remaining;
     }
 
-    uint32_t phase = (accel_phase > decel_phase) ? accel_phase : decel_phase;
+    uint32_t phase;
+    if (accel_phase > decel_phase) {
+        phase = accel_phase;
+    } else {
+        // Deceleration arm: keep phase low near target so motor stays at cruise
+        // speed. Gauge motors rely on holding torque to hold position instantly.
+        // A slow-down ramp would add latency without improving accuracy.
+        phase = ramp_steps - decel_phase;
+    }
     uint32_t delay = cruise_delay + (max_extra_delay * phase) / ramp_steps;
     if (delay < X27_MIN_STEP_US) delay = X27_MIN_STEP_US;
     return delay;

@@ -5,7 +5,9 @@
  * 
  * Supports direct GPIO control and VID6606/STI6606 step/direction control
  * 
- * The X27.168 is a 6-wire bipolar stepper with 315° range (945 steps at 1/3 step)
+ * The X27.168 is a 6-wire bipolar stepper, 315° stock / 360° with limiter removed.
+ * GPIO mode provides 720 steps per 360° (FULL_STEP) or 1080 steps (HALF_STEP).
+ * VID6606/STI6606 mode: external chip handles microstepping; 1 step = 1 pulse.
  * Common in automotive instrument clusters
  * 
  * VID6606/STI6606: Each chip controls up to 4 motors via step/direction interface
@@ -42,9 +44,10 @@
 extern "C" {
 #endif
 
-// X27.168 specifications
-// Can be overridden at build time, for example:
-// target_compile_definitions(... PRIVATE X27_STEPS_PER_REV=1080)
+/** Default steps per revolution. 1080 = 360° for 3°/step (stock X27.168 is 315°,
+ * 945 steps). This default assumes 360°-modified motors (limiter removed).
+ * For unmodified motors, set to 945 and clamp angle range to 315°.
+ */
 #ifndef X27_STEPS_PER_REV
 #define X27_STEPS_PER_REV 1080
 #endif
@@ -75,8 +78,19 @@ extern "C" {
 typedef enum {
     X27_MODE_FULL_STEP = 0,
     X27_MODE_HALF_STEP = 1,
-    X27_MODE_MICRO_STEP = 2  // 1/3 step (native for X27.168)
+    X27_MODE_MICRO_STEP = 2  // GPIO mode aliases HALF_STEP; VID6606 handles microstepping
 } x27_step_mode_t;
+
+/*
+ * Step count derivation (GPIO mode, default X27_STEPS_PER_REV = 1080):
+ *   FULL_STEP uses X27_STEP_SEQUENCE (4 positions). One cycle = 4 steps.
+ *     Steps/rev = 1080 * 4 / (4 * 1.5) = 720. The 1.5x factor accounts for
+ *     coil current redistribution in the GPIO stepping table.
+ *   HALF_STEP uses X27_HALF_STEP_SEQUENCE (8 positions). One cycle = 8 steps.
+ *     Steps/rev = 1080 * 8 / 8 = 1080.
+ *   MICRO_STEP is an alias for HALF_STEP in GPIO mode. In VID6606 mode,
+ *     the external chip performs its own microstepping regardless of this setting.
+ */
 
 // Driver types
 typedef enum {
@@ -160,9 +174,9 @@ void x27_set_angle(x27_motor_t *motor, float angle);
 /**
  * Get effective steps/rev for current stepping mode.
  * If X27_STEPS_PER_REV represents micro-step resolution (default), then:
- *  - FULL_STEP = X27_STEPS_PER_REV / 3
- *  - HALF_STEP = X27_STEPS_PER_REV * 2 / 3
- *  - MICRO_STEP = X27_STEPS_PER_REV
+ *  - FULL_STEP = (X27_STEPS_PER_REV * 2) / 3 per revolution (= 720 for default 1080)
+ *  - HALF_STEP = X27_STEPS_PER_REV per revolution (= 1080 for default)
+ *  - MICRO_STEP = X27_STEPS_PER_REV per revolution, half-step sequence (see note below)
  */
 uint32_t x27_get_effective_steps_per_rev(const x27_motor_t *motor);
 

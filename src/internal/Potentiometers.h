@@ -11,11 +11,13 @@ namespace DcsBios {
 	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, unsigned int hysteresis = 128, unsigned int ewma_divisor = 5>
 	class PotentiometerEWMA : PollingInput, public ResettableInput {
 	private:
-		void resetState() {
+		// This function resets the last state.
+void resetState() {
 			lastState_ = (lastState_==0)?-1:0;
 		}
 
-		void pollInput() {
+		// This function reads the ADC input. It maps the raw value to an unsigned integer state. It updates the accumulator using the EWMA divisor. It calculates a target state. It then checks if the state change exceeds the hysteresis threshold. If the change is significant, it sends the state message.
+void pollInput() {
 			uint rawValue;
 
 			adc_select_input(adc_channel_);
@@ -96,7 +98,8 @@ namespace DcsBios {
 			accumulator = lastState_;
 		}
 
-		void SetControl(const char* msg) {
+		// This function sets the message string.
+void SetControl(const char* msg) {
 			msg_ = msg;
 		}
 

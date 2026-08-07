@@ -48,9 +48,9 @@ static void onReceive(int howMany) {
     }
     if (frameLen < 4) return;
 
-    uint8_t reg = frame[0];
-    uint8_t cmd = frame[1];
-    uint8_t len = frame[2];
+    uint8_t reg = frame[FRAME_IDX_REG];
+    uint8_t cmd = frame[FRAME_IDX_CMD];
+    uint8_t len = frame[FRAME_IDX_LEN];
     if (frameLen != (uint8_t)(len + 4)) return;
 
     uint8_t crc = 0;

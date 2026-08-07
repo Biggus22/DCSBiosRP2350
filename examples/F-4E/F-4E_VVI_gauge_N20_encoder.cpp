@@ -56,20 +56,24 @@ constexpr int8_t QUADRATURE_DECODE_TABLE[16] = {
     0, 1, -1, 0,
 };
 
+// Reads the state from encoder pins A and B.
 uint8_t readEncoderState() {
     return (uint8_t)((gpio_get(MOTOR_ENCODER_A_PIN) ? 0x2u : 0u) |
                      (gpio_get(MOTOR_ENCODER_B_PIN) ? 0x1u : 0u));
 }
 
+// Returns the absolute value of the input integer.
 int32_t motorAbs(int32_t value) {
     return value >= 0 ? value : -value;
 }
 
+// Sets the motor control pins to zero level.
 void stopMotor() {
     pwm_set_gpio_level(MOTOR_IN1_PIN, 0);
     pwm_set_gpio_level(MOTOR_IN2_PIN, 0);
 }
 
+// Sets the motor drive level and direction. If direction is positive, IN1 receives the drive level.
 void setMotorDrive(int direction, uint16_t drive_level) {
     if (direction > 0) {
         pwm_set_gpio_level(MOTOR_IN1_PIN, drive_level);

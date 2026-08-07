@@ -30,26 +30,20 @@
 #define I2C_SLAVE_ADDRESS 0x08
 
 // --- CRC-8 (Dallas, poly 0x07, init 0x00) ---
-static uint8_t crc8_table[256];
-
-static void init_crc8_table() {
-    for (uint16_t i = 0; i < 256; i++) {
-        uint8_t crc = (uint8_t)i;
-        for (uint8_t j = 0; j < 8; j++) {
-            if (crc & 0x80) {
-                crc = (crc << 1) ^ 0x07;
-            } else {
-                crc <<= 1;
-            }
-        }
-        crc8_table[i] = crc;
-    }
-}
-
+// Bitwise version: no 256-byte lookup table, so it fits the 512-byte
+// SRAM of ATtiny804/404 class devices. Frames are a few bytes, so the
+// per-byte bit loop is free in practice.
 static inline uint8_t crc8_calc(const uint8_t *data, uint8_t len) {
     uint8_t crc = 0;
     for (uint8_t i = 0; i < len; i++) {
-        crc = crc8_table[crc ^ data[i]];
+        crc ^= data[i];
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (uint8_t)((crc << 1) ^ 0x07);
+            } else {
+                crc = (uint8_t)(crc << 1);
+            }
+        }
     }
     return crc;
 }

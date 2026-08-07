@@ -33,6 +33,7 @@ void MCP23S17::begin() {
     writeRegister(MCP23S17_IODIRB, 0xFF);
 }
 
+// This function sets the direction and pull-up state for a pin. It configures the register based on the provided mode.
 void MCP23S17::pinMode(uint8_t pin, uint8_t mode) {
     uint8_t reg_iodir = (pin < 8) ? MCP23S17_IODIRA : MCP23S17_IODIRB;
     uint8_t bit = pin % 8;
@@ -54,6 +55,7 @@ void MCP23S17::pinMode(uint8_t pin, uint8_t mode) {
     }
 }
 
+// This function sets the output state of a pin. It sets the corresponding bit in the GPIO register.
 void MCP23S17::digitalWrite(uint8_t pin, uint8_t value) {
     uint8_t reg_gpio = (pin < 8) ? MCP23S17_GPPA : MCP23S17_GPIOB; 
     uint8_t bit = pin % 8;
@@ -68,12 +70,14 @@ void MCP23S17::digitalWrite(uint8_t pin, uint8_t value) {
     writeRegister(reg_gpio, current_gpio);
 }
 
+// This function reads the digital state of a pin. It returns the value of the corresponding bit in the GPIO register.
 uint8_t MCP23S17::digitalRead(uint8_t pin) {
     uint8_t reg_gpio = (pin < 8) ? MCP23S17_GPPA : MCP23S17_GPIOB; 
     uint8_t bit = pin % 8;
     return (readRegister(reg_gpio) >> bit) & 0x01;
 }
 
+// This function enables or disables the pull-up resistor for a pin. It modifies the appropriate GPIO control register.
 void MCP23S17::pullUp(uint8_t pin, bool enable) { 
     uint8_t reg_gppu = (pin < 8) ? MCP23S17_GPPUA : MCP23S17_GPPUB;
     uint8_t bit = pin % 8;
@@ -88,6 +92,7 @@ void MCP23S17::pullUp(uint8_t pin, bool enable) {
 }
 
 // --- New Method Implementations ---
+// This function sets the direction for a port. It writes the direction value to the IODIRA register.
 void MCP23S17::setPortDirection(uint16_t direction) {
     writeRegister16(MCP23S17_IODIRA, direction);
 }

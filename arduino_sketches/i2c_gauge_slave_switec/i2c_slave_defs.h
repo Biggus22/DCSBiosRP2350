@@ -6,7 +6,7 @@
  * and src/internal/I2cCommand.h in the main project.
  *
  * Frame wire format: [reg:1][cmd:1][len:1][data:len][crc8:1]
- * CRC-8: Dallas/Maxim 1-Wire, poly 0x07, init 0x00
+ * CRC-8: poly 0x07 (custom, not Dallas/Maxim 1-Wire), init 0x00
  */
 #ifndef I2C_SLAVE_DEFS_H
 #define I2C_SLAVE_DEFS_H
@@ -20,16 +20,29 @@
 #define FRAME_IDX_DATA    3
 
 // --- I2C commands (matches I2cCmd enum in I2cCommand.h) ---
-#define CMD_SET_POSITION  0x01
-#define CMD_HOME_SWEEP    0x03
+#define CMD_SET_POSITION    0x01
+#define CMD_SET_ANGLE       0x02
+#define CMD_HOME_SWEEP      0x03
+#define CMD_HOME_SENSOR     0x04
+#define CMD_STATUS_REQ      0x05
+#define CMD_SET_MODE        0x06
+#define CMD_CONFIG_GET      0x07
+#define CMD_CONFIG_SET      0x08
+#define CMD_RESET           0x7F
 
 // --- Register IDs ---
-#define REG_GAUGE         0x01
+#define REG_SYSTEM          0x00
+#define REG_GAUGE           0x01
+#define I2C_PROTOCOL_VERSION 0x01
 
 // --- I2C slave address (default; override in sketch if needed) ---
 #define I2C_SLAVE_ADDRESS 0x08
 
-// --- CRC-8 (Dallas, poly 0x07, init 0x00) ---
+// --- Frame size guards ---
+#define FRAME_MAX_PAYLOAD  250
+#define FRAME_OVERHEAD       4
+
+// --- CRC-8 (poly 0x07, custom, not Dallas/Maxim 1-Wire) ---
 // Bitwise version: no 256-byte lookup table, so it fits the 512-byte
 // SRAM of ATtiny804/404 class devices. Frames are a few bytes, so the
 // per-byte bit loop is free in practice.

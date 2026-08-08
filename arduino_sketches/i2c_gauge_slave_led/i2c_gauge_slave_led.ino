@@ -2,7 +2,7 @@
  * I2C Gauge Slave — LED Brightness
  *
  * Receives [reg][cmd][len][data][crc8] frames from Pico 2 master.
- * reg=0x01, cmd=0x01 (SET_POSITION), data=[0-255 brightness] → PWM on LED_BUILTIN.
+ * reg=REG_GAUGE, cmd=CMD_SET_POSITION, data=[0-255 brightness] → PWM on LED_BUILTIN.
  *
  * Wiring:
  *   A4 (SDA) → Pico 2 GP6 (level shift if Nano at 5V)
@@ -35,7 +35,8 @@ static void onReceive(int howMany) {
     uint8_t reg = frame[FRAME_IDX_REG];
     uint8_t cmd = frame[FRAME_IDX_CMD];
     uint8_t len = frame[FRAME_IDX_LEN];
-    if (frameLen != (uint8_t)(len + 4)) return;
+    if (len > FRAME_MAX_PAYLOAD) return;
+    if (frameLen != (uint8_t)(len + FRAME_OVERHEAD)) return;
 
     if (crc8_calc(frame, frameLen - 1) != frame[frameLen - 1]) return;
 

@@ -53,21 +53,9 @@ static const uint8_t HALF_STEP_SEQUENCE[8][4] = {
     {0, 0, 1, 0}   // Step 7
 };
 
-// Micro step sequence (12 steps per cycle - 1/3 step)
-static const uint8_t MICRO_STEP_SEQUENCE[12][4] = {
-    {1, 0, 1, 0},  // Step 0
-    {1, 0, 1, 0},  // Step 1
-    {1, 0, 0, 1},  // Step 2
-    {1, 0, 0, 1},  // Step 3
-    {0, 1, 0, 1},  // Step 4
-    {0, 1, 0, 1},  // Step 5
-    {0, 1, 1, 0},  // Step 6
-    {0, 1, 1, 0},  // Step 7
-    {1, 0, 1, 0},  // Step 8 (wraps around)
-    {1, 0, 1, 0},  // Step 9
-    {1, 0, 0, 1},  // Step 10
-    {1, 0, 0, 1}   // Step 11
-};
+// MICRO_STEP_SEQUENCE removed: it repeated HALF_STEP_SEQUENCE positions 3x
+// with no additional mechanical resolution. MICRO_STEP now aliases HALF_STEP.
+// In VID6606 mode, the external chip performs its own microstepping.
 
 // Internal helper functions
 static void x27_set_coils_gpio(x27_motor_t *motor, uint8_t c1a, uint8_t c1b, uint8_t c2a, uint8_t c2b) {
@@ -86,9 +74,11 @@ static uint32_t x27_steps_per_rev_for_mode(x27_step_mode_t mode) {
             steps = (X27_STEPS_PER_REV * 2) / 3;
             break;
         case X27_MODE_HALF_STEP:
+        case X27_MODE_MICRO_STEP:
+            // MICRO_STEP is an alias for HALF_STEP in GPIO mode.
+            // In VID6606 mode, the chip handles microstepping independently.
             steps = X27_STEPS_PER_REV;
             break;
-        case X27_MODE_MICRO_STEP:
         default:
             steps = X27_STEPS_PER_REV;
             break;
@@ -116,7 +106,15 @@ static uint32_t x27_ramped_delay_us(const x27_motor_t *motor) {
         decel_phase = ramp_steps - (uint32_t)remaining;
     }
 
-    uint32_t phase = (accel_phase > decel_phase) ? accel_phase : decel_phase;
+    uint32_t phase;
+    if (accel_phase > decel_phase) {
+        phase = accel_phase;
+    } else {
+        // Deceleration arm: keep phase low near target so motor stays at cruise
+        // speed. Gauge motors rely on holding torque to hold position instantly.
+        // A slow-down ramp would add latency without improving accuracy.
+        phase = ramp_steps - decel_phase;
+    }
     uint32_t delay = cruise_delay + (max_extra_delay * phase) / ramp_steps;
     if (delay < X27_MIN_STEP_US) delay = X27_MIN_STEP_US;
     return delay;
@@ -141,13 +139,13 @@ static void x27_step(x27_motor_t *motor, int8_t direction) {
                 seq_len = 4;
                 break;
             case X27_MODE_HALF_STEP:
+            case X27_MODE_MICRO_STEP:
                 sequence = HALF_STEP_SEQUENCE;
                 seq_len = 8;
                 break;
-            case X27_MODE_MICRO_STEP:
             default:
-                sequence = MICRO_STEP_SEQUENCE;
-                seq_len = 12;
+                sequence = HALF_STEP_SEQUENCE;
+                seq_len = 8;
                 break;
         }
         

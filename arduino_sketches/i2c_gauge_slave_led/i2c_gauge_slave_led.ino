@@ -11,6 +11,9 @@
  *   4.7kΩ pull-ups to 3.3V on Pico side
  *
  * Voltage: RP2350 is 3.3V. Nano at 5V needs level shifter on SDA/SCL.
+ *
+ * ATtiny804 note: frame buffer sized to the Wire rx buffer (32 bytes),
+ * not 254 — the ATtiny804 has 512 bytes SRAM.
  */
 
 #include <Wire.h>
@@ -19,7 +22,7 @@
 
 #define LED_PIN LED_BUILTIN
 
-static uint8_t frame[254];
+static uint8_t frame[32];
 static uint8_t frameLen = 0;
 
 static void onReceive(int howMany) {
@@ -34,11 +37,7 @@ static void onReceive(int howMany) {
     uint8_t len = frame[FRAME_IDX_LEN];
     if (frameLen != (uint8_t)(len + 4)) return;
 
-    uint8_t crc = 0;
-    for (uint8_t i = 0; i < frameLen - 1; i++) {
-        crc = crc8_table[crc ^ frame[i]];
-    }
-    if (crc != frame[frameLen - 1]) return;
+    if (crc8_calc(frame, frameLen - 1) != frame[frameLen - 1]) return;
 
     if (reg == REG_GAUGE && cmd == CMD_SET_POSITION && len == 1) {
         analogWrite(LED_PIN, frame[FRAME_IDX_DATA]);
@@ -46,7 +45,6 @@ static void onReceive(int howMany) {
 }
 
 void setup() {
-    init_crc8_table();
     pinMode(LED_PIN, OUTPUT);
     Wire.begin(I2C_SLAVE_ADDRESS);
     Wire.onReceive(onReceive);

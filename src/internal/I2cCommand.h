@@ -14,6 +14,7 @@ enum I2cCmd : uint8_t {
     I2C_CMD_SET_MODE        = 0x06,
     I2C_CMD_CONFIG_GET      = 0x07,
     I2C_CMD_CONFIG_SET      = 0x08,
+    I2C_CMD_SET_BACKLIGHT   = 0x09,
     I2C_CMD_RESET           = 0x7F,
 };
 

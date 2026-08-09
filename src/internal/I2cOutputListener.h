@@ -13,6 +13,7 @@ public:
         LED_BRIGHTNESS = 1,
         STEPS_16BIT    = 2,
         ANGLE_CENTIDEG = 3,
+        BACKLIGHT      = 4,
     };
 
     I2cOutputListener(unsigned int address,

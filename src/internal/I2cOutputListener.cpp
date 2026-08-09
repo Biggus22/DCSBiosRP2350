@@ -47,6 +47,12 @@ void I2cOutputListener::loop() {
             cmd = I2C_CMD_SET_ANGLE;
             break;
         }
+
+        case BACKLIGHT:
+            dataBuf[0] = (uint8_t)((raw * 255) / 65535);
+            dataLen = 1;
+            cmd = I2C_CMD_SET_BACKLIGHT;
+            break;
     }
 
     sendFrame_(cmd, dataBuf, dataLen);

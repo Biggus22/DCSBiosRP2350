@@ -163,6 +163,12 @@ namespace DcsBios {
 #include "internal/MatrixSwitches.h"
 #endif
 // #include "internal/DualModeButton.h"
+#include "internal/I2cFrame.h"
+#include "internal/I2cBus.h"
+#include "internal/I2cBusHwMaster.h"
+#include "internal/I2cCommand.h"
+#include "internal/I2cProtocol.h"
+#include "internal/I2cOutputListener.h"
 
 namespace DcsBios {
 	template<unsigned int first, unsigned int second>

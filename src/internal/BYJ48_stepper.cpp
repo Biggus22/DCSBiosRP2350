@@ -43,6 +43,7 @@ static const uint8_t SEQ_BIPOLAR[4][4] = {
     {1,0,0,1}
 };
 
+// Sets the four motor pins using the provided state array.
 static void byj_set_pins(const byj_motor_t *m, const uint8_t state[4]) {
     gpio_put(m->cfg.pin0, state[0]);
     gpio_put(m->cfg.pin1, state[1]);
@@ -50,6 +51,7 @@ static void byj_set_pins(const byj_motor_t *m, const uint8_t state[4]) {
     gpio_put(m->cfg.pin3, state[3]);
 }
 
+// Applies the step sequence based on the motor mode. If bipolar mode, it uses the bipolar sequence. Otherwise, it uses the sequence for the current mode.
 static void byj_apply_step_index(byj_motor_t *m, int index) {
     // If operating in bipolar (H-bridge input) mode, use bipolar sequence
     if (m->output_mode == BYJ_OUTPUT_BIPOLAR) {
@@ -79,6 +81,7 @@ static void byj_apply_step_index(byj_motor_t *m, int index) {
     }
 }
 
+// Initializes the motor configuration and GPIO pins. It sets the motor mode, position, and initializes all pins as outputs.
 bool byj_init_gpio(byj_motor_t *motor, const byj_gpio_config_t *cfg, byj_step_mode_t mode) {
     if (!motor || !cfg) return false;
     motor->cfg = *cfg;
@@ -110,6 +113,7 @@ bool byj_init_gpio(byj_motor_t *motor, const byj_gpio_config_t *cfg, byj_step_mo
     return true;
 }
 
+// Sets the motor's output mode. It changes the mode to bipolar if the input is BYJ_OUTPUT_BIPOLAR.
 void byj_set_output_mode(byj_motor_t *motor, int output_mode) {
     if (!motor) return;
     motor->output_mode = (output_mode == BYJ_OUTPUT_BIPOLAR) ? BYJ_OUTPUT_BIPOLAR : BYJ_OUTPUT_UNIPOLAR;

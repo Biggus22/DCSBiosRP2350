@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD waveshare_rp2350_zero CACHE STRING "Board type")
 # Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
@@ -48,14 +48,9 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ACFS_RP2040_Pico_testing_light.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_AuralTone_RP2040_ProMicro.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_EngStart_RP2040_ProMicro_testing_light.cpp)
-# add_executable(DCSBiosRP2350 test_programs/DC_motor_MX1508_test.cpp)
-# add_executable(DCSBiosRP2350 test_programs/Motor_C_MX1508_sweep.cpp)
-#add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
-#add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
-# add_executable(DCSBiosRP2350 test_programs/epaper_test.cpp)
-#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Left_Utility_RP2350-Zero.cpp)  # disabled — building epaper_test
+add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Left_Utility_RP2350-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_ST7789.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Right_Utility_RP2350-Zero)
@@ -81,12 +76,20 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 test_programs/28BYJ48_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
  # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_2.cpp)
- # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VVI_gauge_N20_encoder.cpp)
+  #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_VVI_gauge_N20_encoder.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_X27_DRV8833.cpp)
-add_executable(DCSBiosRP2350 test_programs/servo_sweep_test.cpp)
+#add_executable(DCSBiosRP2350 test_programs/servo_sweep_test.cpp)
 # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_X27_and_N20_gauges.cpp)
-
-
+# add_executable(DCSBiosRP2350 test_programs/DC_motor_MX1508_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/Motor_C_MX1508_sweep.cpp)
+#add_executable(DCSBiosRP2350 test_programs/28BYJ48_DRV8833_test.cpp)
+#add_executable(DCSBiosRP2350 test_programs/X27_angle_calibrator.cpp)
+# add_executable(DCSBiosRP2350 test_programs/epaper_test.cpp)
+# add_executable(DCSBiosRP2350 test_programs/X27_DRV8833_test.cpp)
+# add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_led_demo.cpp)
+#add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_switec_demo.cpp)
+# add_executable(DCSBiosRP2350 test_programs/i2c_frame_unittest.cpp)
+# add_executable(DCSBiosRP2350 test_programs/gpio_scan.cpp)
 
 pico_set_program_name(DCSBiosRP2350 "DCSBiosRP2350")
 pico_set_program_version(DCSBiosRP2350 "0.1")
@@ -118,6 +121,7 @@ target_link_libraries(DCSBiosRP2350 PRIVATE
         hardware_uart
         hardware_dma
         hardware_gpio
+        pico_i2c_slave
         )
 
 
@@ -151,6 +155,11 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/BYJ48_stepper.cpp
     src/internal/ST7789.cpp
     src/internal/ST7789_numbers.cpp
+    src/internal/I2cFrame.cpp
+    src/internal/I2cBusHwMaster.cpp
+    src/internal/I2cCommand.cpp
+    src/internal/I2cProtocol.cpp
+    src/internal/I2cOutputListener.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 

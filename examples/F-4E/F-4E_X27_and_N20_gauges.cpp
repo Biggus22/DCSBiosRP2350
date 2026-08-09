@@ -19,7 +19,7 @@
 namespace {
 
 constexpr uint32_t RS485_BAUD = 250000;
-constexpr unsigned char RS485_SLAVE_ADDRESS = 0x01;
+constexpr unsigned char RS485_SLAVE_ADDRESS = 0xF;
 
 // Board pin assumptions from the current 3-driver gauge board:
 //   Motor A: X27 gauge on driver A
@@ -111,24 +111,29 @@ constexpr int8_t QUADRATURE_DECODE_TABLE[16] = {
     0, 1, -1, 0,
 };
 
+// This function converts a raw input value into X27 steps.
 int32_t rawToX27Steps(unsigned int raw) {
     return (int32_t)(((uint32_t)raw * (uint32_t)X27_MAX_POSITION) / 65535u);
 }
 
+// This function reads the state of the motor C encoder pins.
 uint8_t readMotorCEncoderState() {
     return (uint8_t)((gpio_get(MOTOR_C_ENCODER_A_PIN) ? 0x2u : 0u) |
                      (gpio_get(MOTOR_C_ENCODER_B_PIN) ? 0x1u : 0u));
 }
 
+// This function returns the absolute value of the input integer.
 int32_t motorCAbs(int32_t value) {
     return value >= 0 ? value : -value;
 }
 
+// This function stops the motor C by setting both control pins to zero.
 void stopMotorC() {
     pwm_set_gpio_level(MOTOR_C_IN1_PIN, 0);
     pwm_set_gpio_level(MOTOR_C_IN2_PIN, 0);
 }
 
+// This function sets the motor C drive direction and level.
 void setMotorCDrive(int direction, uint16_t drive_level) {
     if (direction > 0) {
         pwm_set_gpio_level(MOTOR_C_IN1_PIN, drive_level);

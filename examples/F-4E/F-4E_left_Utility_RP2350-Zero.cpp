@@ -163,13 +163,15 @@ const uint8_t o2ServoPins[3] = {9, 11, 13};
 
 // O2 mixture switch (2-position) on GPIO pins 12 and 10
 const uint8_t pltO2MixturePins[2] = {12, 10};
-DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 2> pltO2Mixture("PLT_O2_MIXTURE", pltO2MixturePins,
-    F_4E_PLT_O2_MIXTURE, 50);
-
+DcsBios::SyncingSwitchMultiPosT<POLL_EVERY_TIME, 2> pltO2Mixture("PLT_O2_MIXTURE", pltO2MixturePins,F_4E_PLT_O2_MIXTURE, 50);
 // O2 supply switch (2-position) on GPIO pin 14
-DcsBios::SyncingSwitch2PosT<POLL_EVERY_TIME> pltO2Supply("PLT_O2_SUPPLY", 14,
+DcsBios::SyncingSwitch2PosT<POLL_EVERY_TIME> pltO2Supply("PLT_O2_SUPPLY", 15,
     F_4E_PLT_O2_SUPPLY);
 
+// Anti-skid switch (2-position) on GPIO pin 28
+DcsBios::SyncingSwitch2PosT<POLL_EVERY_TIME> pltGearAntiSkid("PLT_GEAR_ANTI_SKID", 28,
+    F_4E_PLT_GEAR_ANTI_SKID);
+DcsBios::Switch2Pos pltO2Test("PLT_O2_TEST", 14);
 int main()
 {
     stdio_init_all();                      // Initialize USB CDC

@@ -87,22 +87,26 @@ static constexpr VviCalibrationPoint VVI_POS_CAL[] = {
     {6.0f, 78.7f},
 };
 
+// Clamps the input value x between lo and hi.
 static float clampf(float x, float lo, float hi) {
     if (x < lo) return lo;
     if (x > hi) return hi;
     return x;
 }
 
+// Normalizes the input angle to the range [0, 360).
 static float wrapAngle360(float angle_deg) {
     while (angle_deg < 0.0f) angle_deg += 360.0f;
     while (angle_deg >= 360.0f) angle_deg -= 360.0f;
     return angle_deg;
 }
 
+// Performs linear interpolation between values a and b using t.
 static float lerp(float a, float b, float t) {
     return a + (b - a) * t;
 }
 
+// Finds the angle corresponding to v_abs using calibration points. It clamps v_abs to [0, 6]. It iterates through calibration points. It calculates the interpolation factor t. It wraps the resulting angle using wrapAngle360. It returns the interpolated angle.
 static float interpolateVviPositiveAngle(float v_abs) {
     v_abs = clampf(v_abs, 0.0f, 6.0f);
     for (size_t i = 0; i + 1 < sizeof(VVI_POS_CAL) / sizeof(VVI_POS_CAL[0]); ++i) {
@@ -121,6 +125,7 @@ static float interpolateVviPositiveAngle(float v_abs) {
     return VVI_POS_CAL[sizeof(VVI_POS_CAL) / sizeof(VVI_POS_CAL[0]) - 1].angle_deg;
 }
 
+// Converts the input angle into an integer position step. It calculates a relative angle. It wraps the relative angle. It mirrors the relative angle. It calculates the steps based on the relative angle. It clamps the steps to the valid range.
 static int32_t angleToX27Position(float angle_deg) {
     float relative = angle_deg - 270.0f;
     relative = wrapAngle360(relative);

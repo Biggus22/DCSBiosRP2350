@@ -32,9 +32,11 @@ static const uint8_t digitToSegment[] = {
 };
 
 TM1637::TM1637(uint8_t clkPin, uint8_t dataPin) 
-    : _clkPin(clkPin), _dataPin(dataPin), _brightness(7) {
+    : // Initialize internal pins and brightness.
+_clkPin(clkPin), _dataPin(dataPin), _brightness(7) {
 }
 
+// Initialize GPIO pins for clock and data. Set direction to output. Initialize pins to zero.
 void TM1637::begin() {
     gpio_init(_clkPin);
     gpio_init(_dataPin);
@@ -44,6 +46,7 @@ void TM1637::begin() {
     gpio_put(_dataPin, 0);
 }
 
+// Prepare text for display. Encode text into a 6-digit array. Add decimal points to previous digits. Write data to the display.
 void TM1637::display(const char* text, bool reverseOrder, bool customOrder) {
     int len = strlen(text);
     uint8_t digits[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // Initialize with blanks
@@ -96,6 +99,7 @@ void TM1637::display(const char* text, bool reverseOrder, bool customOrder) {
     stop();
 }
 
+// Encode text into a 6-digit array. Set the specified position as a decimal point. Write data to the display. Stop and restart the display sequence.
 void TM1637::displayWithDecimalPoint(const char* text, int decimalPosition, bool reverseOrder, bool customOrder) {
     int len = strlen(text);
     uint8_t digits[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // Initialize with blanks

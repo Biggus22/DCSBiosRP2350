@@ -57,6 +57,7 @@ ST7789::ST7789(spi_inst_t* spi, uint cs_pin, uint dc_pin, uint rst_pin, uint bl_
     gpio_put(bl_, 1);
 }
 
+// This function sends a single command byte. It controls the data direction and chip select lines.
 void ST7789::sendCommand(uint8_t cmd) {
     gpio_put(dc_, 0);
     sleep_us(2);
@@ -68,6 +69,7 @@ void ST7789::sendCommand(uint8_t cmd) {
     sleep_us(2);
 }
 
+// This function sends a block of data. It controls the data direction and chip select lines.
 void ST7789::sendData(const uint8_t* data, size_t len) {
     gpio_put(dc_, 1);
     sleep_us(2);
@@ -79,10 +81,12 @@ void ST7789::sendData(const uint8_t* data, size_t len) {
     sleep_us(2);
 }
 
+// This function sends a single byte of data.
 void ST7789::sendData8(uint8_t d) {
     sendData(&d, 1);
 }
 
+// This function initializes the display hardware. It sets the SPI format, performs a hardware reset, and sets the display mode.
 void ST7789::init(uint32_t baudrate) {
     // Configure SPI data format (8 bits, mode 0, MSB first)
     spi_set_format(spi_, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);

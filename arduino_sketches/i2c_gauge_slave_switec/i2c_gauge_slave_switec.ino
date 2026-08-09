@@ -2,8 +2,8 @@
  * I2C Gauge Slave — SwitecX25 Stepper
  *
  * Receives [reg][cmd][len][data][crc8] frames from Pico 2 master.
- * reg=0x01, cmd=0x01 (SET_POSITION), data=[uint16_le steps] → motor1.setPosition(target).
- * reg=0x01, cmd=0x09 (SET_BACKLIGHT), data=[0-255] → analogWrite(BACKLIGHT_PIN).
+ * reg=REG_GAUGE, cmd=CMD_SET_POSITION, data=[uint16_le steps] → motor1.setPosition(target).
+ * reg=REG_GAUGE, cmd=CMD_SET_BACKLIGHT, data=[0-255] → analogWrite(BACKLIGHT_PIN).
  *
  * Uses SwitecX25 library: https://github.com/clearwater/SwitecX25
  *
@@ -17,13 +17,14 @@
  *
  * Voltage: RP2350 is 3.3V. ATtiny1614 at 3.3V connects directly, no level shifter.
  * Swapping any two coil pins reverses motor direction.
+ *
+ * Frame buffer sized to the Wire rx buffer (32 bytes).
  */
 
 #include <Wire.h>
 #include <SwitecX25.h>
+#include "i2c_slave_defs.h"
 
-#define I2C_SLAVE_ADDRESS 0x08
-#define I2C_CMD_SET_BACKLIGHT 0x09
 #define STEPS (315*3)  // 945 steps, 315° at 1/3 resolution
 #define BACKLIGHT_PIN PIN_PB1
 #define BACKLIGHT_DEFAULT 127
@@ -40,29 +41,32 @@ SwitecX25 motor1(STEPS, PIN_PA7, PIN_PA6, PIN_PA4, PIN_PA5);
 static int lastDirection = 0;   // 0=unknown, 1=forward, -1=backward
 static uint16_t lastTarget = 0;
 
-// --- CRC-8 (Dallas, poly 0x07, init 0x00) ---
-static uint8_t crc8_table[256];
-
-static void init_crc8_table() {
-    for (uint16_t i = 0; i < 256; i++) {
-        uint8_t crc = (uint8_t)i;
-        for (uint8_t j = 0; j < 8; j++) {
-            if (crc & 0x80) {
-                crc = (crc << 1) ^ 0x07;
-            } else {
-                crc <<= 1;
-            }
-        }
-        crc8_table[i] = crc;
-    }
-}
-
-static uint8_t frame[254];
+static uint8_t frame[32];
 static uint8_t frameLen = 0;
 
 // Deferred homing flag — motor1.zero() is blocking, so we run it in loop()
 // instead of the I2C ISR. Master sends cmd 0x03 (HOME_SWEEP) to trigger.
 static bool homeRequested = false;
+
+// --- SET_POSITION handler (split out of ISR for clarity) ---
+static void handleSetPosition(uint16_t rawValue) {
+    uint16_t target = (uint16_t)(((uint32_t)rawValue * STEPS) / 65535);
+    if (target > STEPS) target = STEPS;
+
+    // Direction-locked filter: prevent small direction reversals
+    // from jittering the motor against the acceleration ramp.
+    if (lastDirection >= 0 && target >= lastTarget) {
+        lastDirection = 1;
+    } else if (lastDirection <= 0 && target <= lastTarget) {
+        lastDirection = -1;
+    } else if (abs((int16_t)target - (int16_t)lastTarget) > DIR_FILTER_THRESHOLD) {
+        lastDirection = (target > lastTarget) ? 1 : -1;
+    } else {
+        return; // small reversal — ignore
+    }
+    lastTarget = target;
+    motor1.setPosition(target);
+}
 
 static void onReceive(int howMany) {
     frameLen = 0;
@@ -71,45 +75,27 @@ static void onReceive(int howMany) {
     }
     if (frameLen < 4) return;
 
-    uint8_t reg = frame[0];
-    uint8_t cmd = frame[1];
-    uint8_t len = frame[2];
-    if (frameLen != (uint8_t)(len + 4)) return;
+    uint8_t reg = frame[FRAME_IDX_REG];
+    uint8_t cmd = frame[FRAME_IDX_CMD];
+    uint8_t len = frame[FRAME_IDX_LEN];
+    if (len > FRAME_MAX_PAYLOAD) return;
+    if (frameLen != (uint8_t)(len + FRAME_OVERHEAD)) return;
 
-    uint8_t crc = 0;
-    for (uint8_t i = 0; i < frameLen - 1; i++) {
-        crc = crc8_table[crc ^ frame[i]];
-    }
-    if (crc != frame[frameLen - 1]) return;
+    if (crc8_calc(frame, frameLen - 1) != frame[frameLen - 1]) return;
 
-    if (reg == 0x01 && cmd == 0x01 && len == 2) {
-        uint16_t rawValue = frame[3] | (frame[4] << 8);
-        uint16_t target = (uint16_t)(((uint32_t)rawValue * STEPS) / 65535);
-        if (target > STEPS) target = STEPS;
-
-        // Direction-locked filter: prevent small direction reversals
-        // from jittering the motor against the acceleration ramp.
-        if (lastDirection >= 0 && target >= lastTarget) {
-            lastDirection = 1;
-        } else if (lastDirection <= 0 && target <= lastTarget) {
-            lastDirection = -1;
-        } else if (abs((int16_t)target - (int16_t)lastTarget) > DIR_FILTER_THRESHOLD) {
-            lastDirection = (target > lastTarget) ? 1 : -1;
-        } else {
-            return; // small reversal — ignore
-        }
-        lastTarget = target;
-        motor1.setPosition(target);
-    } else if (reg == 0x01 && cmd == 0x03 && len == 0) {
+    if (reg == REG_GAUGE && cmd == CMD_SET_POSITION && len == 2) {
+        // Reassemble 16-bit little-endian value from two bytes (low byte, high byte)
+        uint16_t rawValue = frame[FRAME_IDX_DATA] | (frame[FRAME_IDX_DATA + 1] << 8);
+        handleSetPosition(rawValue);
+    } else if (reg == REG_GAUGE && cmd == CMD_HOME_SWEEP && len == 0) {
         // HOME_SWEEP: defer to loop() — motor1.zero() is blocking
         homeRequested = true;
-    } else if (reg == 0x01 && cmd == I2C_CMD_SET_BACKLIGHT && len == 1) {
-        analogWrite(BACKLIGHT_PIN, frame[3]);
+    } else if (reg == REG_GAUGE && cmd == CMD_SET_BACKLIGHT && len == 1) {
+        analogWrite(BACKLIGHT_PIN, frame[FRAME_IDX_DATA]);
     }
 }
 
 void setup() {
-    init_crc8_table();
     pinMode(BACKLIGHT_PIN, OUTPUT);
     analogWrite(BACKLIGHT_PIN, BACKLIGHT_DEFAULT);
     Wire.swap(1);  // TWI0 pinswap-1: SDA=PA1, SCL=PA2

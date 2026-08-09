@@ -89,6 +89,7 @@ add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Left_Utility_RP2350-Zero.cpp)
 # add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_led_demo.cpp)
 #add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_switec_demo.cpp)
 # add_executable(DCSBiosRP2350 test_programs/i2c_frame_unittest.cpp)
+# add_executable(DCSBiosRP2350 test_programs/gpio_scan.cpp)
 
 pico_set_program_name(DCSBiosRP2350 "DCSBiosRP2350")
 pico_set_program_version(DCSBiosRP2350 "0.1")

@@ -66,28 +66,29 @@ struct MotorState {
 
 MotorState g_motor = {};
 
-// This function returns the absolute value of the input integer.
+// Returns the absolute value of the input integer.
 int32_t motorAbs(int32_t value) {
     return value >= 0 ? value : -value;
 }
 
-// This function converts an angle in degrees to encoder counts.
+// Converts the input angle in degrees to encoder counts.
 int32_t angleToCounts(int32_t angle_deg) {
     return (angle_deg * MOTOR_C_ENCODER_COUNTS_PER_OUTPUT_REV + 180) / 360;
 }
 
+// Reads the state of the encoder pins.
 uint8_t readEncoderState() {
     return (uint8_t)((gpio_get(MOTOR_C_ENCODER_A_PIN) ? 0x2u : 0u) |
                      (gpio_get(MOTOR_C_ENCODER_B_PIN) ? 0x1u : 0u));
 }
 
-// This function stops the motor by setting the PWM levels to zero.
+// Sets the output level of both motor control pins to zero.
 void stopMotor() {
     pwm_set_gpio_level(MOTOR_C_IN1_PIN, 0);
     pwm_set_gpio_level(MOTOR_C_IN2_PIN, 0);
 }
 
-// This function sets the motor drive level and direction.
+// Sets the motor drive level based on direction and level. If direction is positive, it sets IN1 level and IN2 level to zero.
 void setMotorDrive(int direction, uint16_t drive_level) {
     if (direction > 0) {
         pwm_set_gpio_level(MOTOR_C_IN1_PIN, drive_level);

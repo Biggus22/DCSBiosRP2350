@@ -1,3 +1,7 @@
+# arduino-cli compile artifacts
+*.lst
+*.map
+
 # CMake build directories
 build/
 bin/

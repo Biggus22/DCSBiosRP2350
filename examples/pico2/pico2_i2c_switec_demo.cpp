@@ -10,18 +10,29 @@
 using namespace DcsBios;
 
 // I2C slave configuration
-static constexpr uint8_t SLAVE_ADDR_SWITEC_GAUGE = 0x08;  // Nano I2C address for the Switec gauge slave
-static constexpr uint8_t REG_ID_O2_FLOW = 0x01;            // register ID for O2 flow gauge data
+static constexpr uint8_t SLAVE_ADDR_LEFT_GAUGE = 0x08;   // I2C address of left fuel flow gauge slave
+static constexpr uint8_t SLAVE_ADDR_RIGHT_GAUGE = 0x09;  // I2C address of right fuel flow gauge slave
+static constexpr uint8_t REG_ID_GAUGE = 0x01;            // register ID for gauge data
 
 static I2cBusHwMaster i2cBus;
 
-// DCS-BIOS: F-4E pilot O2 flow → remote SwitecX25 gauge slave.
-// F_4E_PLT_O2_FLOW_A (0x2B32) → 16-bit step count.
-static I2cOutputListener o2Gauge(
-    F_4E_PLT_O2_FLOW_A,
+// DCS-BIOS: F-4E pilot fuel flow L → remote SwitecX25 gauge slave (left).
+// F_4E_PLT_FUEL_FLOW_L (0x2C8E) → 16-bit step count.
+static I2cOutputListener flowGaugeLeft(
+    F_4E_PLT_FUEL_FLOW_L_A,
     &i2cBus,
-    SLAVE_ADDR_SWITEC_GAUGE,
-    REG_ID_O2_FLOW,
+    SLAVE_ADDR_LEFT_GAUGE,
+    REG_ID_GAUGE,
+    I2cOutputListener::STEPS_16BIT
+);
+
+// DCS-BIOS: F-4E pilot fuel flow R → remote SwitecX25 gauge slave (right).
+// F_4E_PLT_FUEL_FLOW_R (0x2C90) → 16-bit step count.
+static I2cOutputListener flowGaugeRight(
+    F_4E_PLT_FUEL_FLOW_R_A,
+    &i2cBus,
+    SLAVE_ADDR_RIGHT_GAUGE,
+    REG_ID_GAUGE,
     I2cOutputListener::STEPS_16BIT
 );
 

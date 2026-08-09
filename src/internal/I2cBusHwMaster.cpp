@@ -1,5 +1,6 @@
 #include "I2cBusHwMaster.h"
 #include "I2cFrame.h"
+#include <cstring>
 
 namespace DcsBios {
 
@@ -49,9 +50,19 @@ bool I2cBusHwMaster::readFrame(uint8_t addr, uint8_t reg, uint8_t cmd,
                                   make_timeout_time_ms(timeout_ms));
     if (ret <= 0) return false;
 
-    return i2cFrame_decode(rxBuf, (uint8_t)ret,
-                           outReg, outCmd,
-                           (const uint8_t**)&outData, outDataLen);
+    uint8_t dataLen = 0;
+    const uint8_t *dataPtr = nullptr;
+    if (!i2cFrame_decode(rxBuf, (uint8_t)ret, outReg, outCmd, &dataPtr, &dataLen)) {
+        return false;
+    }
+
+    // Copy the payload out: the decoded pointer points into rxBuf, which is
+    // stack-local and must not outlive this function.
+    if (dataLen > 0 && dataPtr != nullptr && outData != nullptr) {
+        std::memcpy(outData, dataPtr, dataLen);
+    }
+    *outDataLen = dataLen;
+    return true;
 }
 
 } // namespace DcsBios

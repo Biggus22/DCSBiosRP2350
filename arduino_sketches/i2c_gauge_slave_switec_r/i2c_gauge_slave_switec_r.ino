@@ -1,11 +1,15 @@
 /*
- * I2C Gauge Slave — SwitecX25 Stepper
+ * I2C Gauge Slave — SwitecX25 Stepper (RIGHT engine fuel flow)
  *
  * Receives [reg][cmd][len][data][crc8] frames from Pico 2 master.
  * reg=REG_GAUGE, cmd=CMD_SET_POSITION, data=[uint16_le steps] → motor1.setPosition(target).
  * reg=REG_GAUGE, cmd=CMD_SET_BACKLIGHT, data=[0-255] → analogWrite(BACKLIGHT_PIN).
  *
  * Uses SwitecX25 library: https://github.com/clearwater/SwitecX25
+ *
+ * This board is the second gauge on the bus: I2C address 0x09. The first
+ * (left fuel flow) slave uses address 0x08. Both share the same SDA/SCL lines
+ * and each has its own ATtiny1614 + X27 motor + hall sensor.
  *
  * ATtiny1614 wiring (megaTinyCore):
  *   PA1 (SDA) → Pico 2 GP6   (TWI0 pinswap-1)
@@ -30,6 +34,8 @@
 
 #include <Wire.h>
 #include <SwitecX25.h>
+
+#define I2C_SLAVE_ADDRESS 0x09
 #include "i2c_slave_defs.h"
 
 #define STEPS 1035  // ~345° travel at 3 steps/° (1/3 step resolution)

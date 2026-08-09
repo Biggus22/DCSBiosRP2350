@@ -28,6 +28,7 @@
 #define CMD_SET_MODE        0x06
 #define CMD_CONFIG_GET      0x07
 #define CMD_CONFIG_SET      0x08
+#define CMD_SET_BACKLIGHT   0x09
 #define CMD_RESET           0x7F
 
 // --- Register IDs ---

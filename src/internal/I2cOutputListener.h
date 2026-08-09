@@ -13,6 +13,7 @@ public:
         LED_BRIGHTNESS = 1,  // 8-bit PWM: DCS range 0-65535 scaled to 0-255
         STEPS_16BIT    = 2,  // raw 16-bit steps: passed straight through
         ANGLE_CENTIDEG = 3,  // centidegrees: DCS range 0-65535 scaled to 0-31500
+        BACKLIGHT      = 4,  // 8-bit backlight: DCS range 0-65535 scaled to 0-255
     };
 
     I2cOutputListener(unsigned int address,

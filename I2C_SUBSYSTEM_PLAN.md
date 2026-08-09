@@ -76,6 +76,7 @@ extends `PollingInput`, reads incoming frames, calls
 | 0x06 | SET_MODE | 2 | `uint8` mode flags |
 | 0x07 | CONFIG_GET | 3 | `uint8` key; response = config blob |
 | 0x08 | CONFIG_SET | 3 | `uint8` key + value |
+| 0x09 | SET_BACKLIGHT | 1 | `uint8` brightness (0..255) |
 | 0x7F | RESET | 1 | none |
 
 ## Phase 1 deliverables
@@ -102,6 +103,7 @@ extends `PollingInput`, reads incoming frames, calls
 | `LED_BRIGHTNESS` | 1 | `(val * 255) / 65535` (Phase 1 PoC) |
 | `STEPS_16BIT` | 2 | `val & 0xFFFF` (Phase 2) |
 | `ANGLE_CENTIDEG` | 3 | `(val * 31500) / 65535` (Phase 2) |
+| `BACKLIGHT` | 4 | `(val * 255) / 65535` sent as `SET_BACKLIGHT` (0x09) |
 
 ### Edit locations
 

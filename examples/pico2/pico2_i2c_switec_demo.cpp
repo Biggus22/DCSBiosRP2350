@@ -25,6 +25,16 @@ static I2cOutputListener o2Gauge(
     I2cOutputListener::STEPS_16BIT
 );
 
+// DCS-BIOS: F-4E console lighting → gauge backlight (red PWM LED on PB1).
+// F_4E_PLT_INT_LIGHT_CONSOLE_A (0x2D8A) → slave 0x08, reg 0x01, 8-bit brightness.
+static I2cOutputListener consoleBacklight(
+    F_4E_PLT_INT_LIGHT_CONSOLE_A,
+    &i2cBus,
+    0x08,
+    0x01,
+    I2cOutputListener::BACKLIGHT
+);
+
 int main() {
     stdio_init_all();
     initHeartbeat(HEARTBEAT_LED);

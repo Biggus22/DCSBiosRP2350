@@ -175,8 +175,8 @@
     //#define I2C0_SDA 4 
     //#define I2C0_SCL 5
 
-    //#define I2C1_SDA 6
-    //#define I2C1_SCL 7
+    #define I2C1_SDA 6
+    #define I2C1_SCL 7
 
     #define UART0_TX 0
     #define UART0_RX 1

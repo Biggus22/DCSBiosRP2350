@@ -76,7 +76,7 @@ void initStatusLed() {
 #endif
 }
 
-// This function sets the status LED color. It sets the pixel color if the status led is ready. It sets the color based on the current state. It updates the last status led update time.
+// Sets the status LED to the given color. If the WS2812 is ready, it sets the pixel to the given RGB values and shows it. Otherwise, it drives the heartbeat LED high when any RGB value is not zero.
 void setStatusColor(const Rgb& c) {
 #if USE_WS2812_STATUS_LED
     if (!statusLedReady) return;

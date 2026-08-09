@@ -60,6 +60,7 @@ struct Rs485Port {
 static WS2812 statusLed(pio0, 0, HEARTBEAT_LED, false);
 static bool statusLedReady = false;
 
+// Initializes the status LED or the heartbeat LED. It sets the brightness and color based on the defined hardware.
 void initStatusLed() {
 #if USE_WS2812_STATUS_LED
     statusLedReady = statusLed.begin(1);
@@ -75,6 +76,7 @@ void initStatusLed() {
 #endif
 }
 
+// Sets the status LED color based on the current state. The function maps the current state to a specific RGB color.
 void setStatusColor(const Rgb& c) {
 #if USE_WS2812_STATUS_LED
     if (!statusLedReady) return;
@@ -132,12 +134,14 @@ void updateStatusLed(bool usbSeen,
     lastStatusLedUpdate = now;
 }
 
+// Waits for the UART transmission to complete. The function loops until the UART becomes writable. It then pauses for 200 microseconds.
 inline void waitUartTxComplete(const Rs485Port& port) {
     while (!uart_is_writable(port.uart)) {
     }
     sleep_us(200);
 }
 
+// Initializes the RS485 port hardware. It sets the UART format and configures the GPIO pins. It starts the port in receive mode.
 void initRs485Port(const Rs485Port& port, uint32_t baudrate) {
     uart_init(port.uart, baudrate);
     gpio_set_function(port.txPin, GPIO_FUNC_UART);

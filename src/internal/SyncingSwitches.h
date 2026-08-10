@@ -42,20 +42,20 @@ static inline unsigned int normalizeExportedValueToIndex(unsigned int fullVal, u
 		unsigned char shift;
 
 		// This function reads the current GPIO state. It inverts the state if reverse is true. It returns zero if the state is one. It returns one otherwise.
-char readState() {
+		char readState() {
 			char state = gpio_get(pin_);
 			if (reverse_) state = !state;
 			return (state == 1) ? 0 : 1;
 		}
 
 		// This function updates the last state. It sets the steady state to the last state.
-void resetState() {
+		void resetState() {
 			lastState_ = (lastState_ == 0) ? -1 : 0;
 			steadyState_ = lastState_;
 		}
 
 		// This function polls the input state. It updates the debounce time if the state changes. It checks if the time difference exceeds the debounce delay. If the state changes, it attempts to send a DCS message. If the message send succeeds, it updates the steady state. It updates the last state.
-void pollInput() {
+		void pollInput() {
 			char state = readState();
 			if (state != lastState_) {
 				lastDebounceTime = to_ms_since_boot(get_absolute_time());

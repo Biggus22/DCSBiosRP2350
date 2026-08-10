@@ -84,6 +84,7 @@ int read_motor_a_zero_sensor_raw() {
     return gpio_get((uint)MOTOR_A_ZERO_SENSOR_PIN);
 }
 
+// Returns the raw value from the specified GPIO pin. Returns -1 if the pin number is negative.
 int read_motor_b_zero_sensor_raw() {
     if (MOTOR_B_ZERO_SENSOR_PIN < 0) {
         return -1;
@@ -91,6 +92,7 @@ int read_motor_b_zero_sensor_raw() {
     return gpio_get((uint)MOTOR_B_ZERO_SENSOR_PIN);
 }
 
+// This function checks if a majority of samples are true. It iterates SENSOR_DEBOUNCE_READS times. It returns true if the active count meets the majority threshold.
 bool majority_vote_active(bool (*sample_fn)()) {
     int active_count = 0;
     for (int i = 0; i < SENSOR_DEBOUNCE_READS; ++i) {
@@ -101,6 +103,7 @@ bool majority_vote_active(bool (*sample_fn)()) {
     return active_count >= ((SENSOR_DEBOUNCE_READS + 1) / 2);
 }
 
+// This function reads the motor A zero sensor raw value. It checks if the sensor is ready and the pin number is valid. It returns true if the raw value matches the active low logic.
 bool read_motor_a_zero_sensor_active_single_sample() {
     if (!g_motor_a_zero_sensor_ready || MOTOR_A_ZERO_SENSOR_PIN < 0) {
         return false;
@@ -110,6 +113,7 @@ bool read_motor_a_zero_sensor_active_single_sample() {
     return MOTOR_A_ZERO_SENSOR_ACTIVE_LOW ? (raw == 0) : (raw != 0);
 }
 
+// This function uses majority vote to determine the sensor state. It calls majority_vote_active with read_motor_a_zero_sensor_active_single_sample.
 bool read_motor_a_zero_sensor_active() {
     return majority_vote_active(read_motor_a_zero_sensor_active_single_sample);
 }

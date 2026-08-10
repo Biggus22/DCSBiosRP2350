@@ -15,6 +15,7 @@ bool PCF8575::writeRegister(uint16_t value) {
     return result == 2;
 }
 
+// This function reads a register from the PCF8575. It performs an I2C read operation. If the read succeeds, it combines the data into a 16-bit value and returns true. If the operation fails, it returns false.
 bool PCF8575::readRegister(uint16_t* value) {
     if (!initialized_ || !value) {
         return false;
@@ -30,6 +31,7 @@ bool PCF8575::readRegister(uint16_t* value) {
     return false;
 }
 
+// This function initializes the PCF8575. It checks if the device is already initialized. It verifies the device connection. It resets the pin states and pin directions to 0xFFFF. It writes the pin states to the register. It sets the initialized flag if the write succeeds.
 bool PCF8575::begin() {
     if (initialized_) {
         return true;
@@ -50,6 +52,7 @@ bool PCF8575::begin() {
     return success;
 }
 
+// This function checks if the PCF8575 is connected. It performs an I2C read operation to check the connection status. It returns true if the result is 2. It returns false otherwise.
 bool PCF8575::isConnected() {
     uint8_t buffer[2];
     int result = i2c_read_blocking(i2c_port_, i2c_address_, buffer, 2, false);
@@ -57,6 +60,7 @@ bool PCF8575::isConnected() {
 }
 
 // Corrected: Return type changed to bool, mode parameter changed to uint8_t
+// This function sets the direction and state of a pin. It checks if the device is initialized and if the pin number is valid. If the mode is GPIO_IN, it sets the pin direction and state masks. If the mode is GPIO_OUT, it clears the pin direction mask. The pin state retains its current value for output mode.
 bool PCF8575::pinMode(uint8_t pin, uint8_t mode) {
     if (!initialized_ || pin > 15) return false; // Return false on error
     
@@ -100,6 +104,7 @@ int PCF8575::digitalRead(uint8_t pin) {
     return -1;
 }
 
+// This function updates the port state. It checks if the device is initialized. It calculates output and input masks. It updates the pin states by combining the input state with the desired output value. It writes the new state to the register.
 bool PCF8575::writePort(uint16_t value) {
     if (!initialized_) return false;
     

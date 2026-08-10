@@ -22,6 +22,7 @@ static const uint8_t SEQ_UNIPOLAR_FULL_DOUBLE[4][4] = {
     {1,0,0,1}
 };
 
+// This function initializes GPIO pins for the H-bridge. It prints diagnostic information.
 int main() {
     stdio_init_all();
 
@@ -54,10 +55,12 @@ int main() {
                 if (ch == 'b') {
                     use_bipolar = true;
                     printf("Mode: bipolar\n");
-                } else if (ch == 'u') {
+                // This block sets the use_bipolar variable to false. It prints the current mode as unipolar.
+} else if (ch == 'u') {
                     use_bipolar = false;
                     printf("Mode: unipolar\n");
-                } else if (ch == 't') {
+                // This block toggles the use_bipolar variable. It prints the new mode status.
+} else if (ch == 't') {
                     use_bipolar = !use_bipolar;
                     printf("Mode toggled: %s\n", use_bipolar ? "bipolar" : "unipolar");
                 }
@@ -67,7 +70,8 @@ int main() {
                     for (int p = 0; p < 4; ++p) gpio_put(STEP_PINS[p], (p == pin) ? 1 : 0);
                     printf("Driving IN%d high\n", pin+1);
                     continue;
-                } else if (ch == 'a') {
+                // This block manages the coil A state. It increments the a_state variable modulo 3. It sets the output pins based on the current state. It prints the coil A status.
+} else if (ch == 'a') {
                     // toggle coil A: IN1/IN2
                     static int a_state = 0;
                     a_state = (a_state + 1) % 3;

@@ -16,6 +16,7 @@ static inline bool x27_vid_has_reset_pin(const x27_motor_t *motor) {
     return motor && (motor->config.vid6606.pin_reset != 0);
 }
 
+// This function sets the VID6606 outputs enabled state. It checks the motor pointer and driver type. It sets the pin high and waits if enabled. It sets the pin low if disabled.
 static inline void x27_vid_set_outputs_enabled(x27_motor_t *motor, bool enabled) {
     if (!motor || motor->driver_type != X27_DRIVER_VID6606) return;
     if (!x27_vid_has_reset_pin(motor)) {
@@ -69,6 +70,7 @@ static void x27_set_coils_gpio(x27_motor_t *motor, uint8_t c1a, uint8_t c1b, uin
     gpio_put(motor->config.gpio.pin_coil2_b, c2b);
 }
 
+// This function calculates the steps per revolution based on the mode. It scales steps for the FULL_STEP mode. It uses the base steps for other modes. It returns 1 if the calculated steps value is zero.
 static uint32_t x27_steps_per_rev_for_mode(x27_step_mode_t mode) {
     uint32_t steps = X27_STEPS_PER_REV;
     switch (mode) {
@@ -90,6 +92,7 @@ static uint32_t x27_steps_per_rev_for_mode(x27_step_mode_t mode) {
     return (steps == 0) ? 1 : steps;
 }
 
+// This function calculates the required ramp delay in microseconds. It calculates the remaining position difference. It determines the ramp steps based on the motor configuration. It calculates the cruise delay value. It determines the accel phase based on steps taken. It determines the decel phase based on remaining steps.
 static uint32_t x27_ramped_delay_us(const x27_motor_t *motor) {
     if (!motor) return X27_MIN_STEP_US;
 
@@ -124,6 +127,7 @@ static uint32_t x27_ramped_delay_us(const x27_motor_t *motor) {
     return delay;
 }
 
+// This function executes a single step for the motor. It determines the logical and physical directions. It selects the sequence based on the step mode. It sets the appropriate sequence for the GPIO driver.
 static void x27_step(x27_motor_t *motor, int8_t direction) {
     int8_t logical_direction = direction;
     int8_t physical_direction = direction;

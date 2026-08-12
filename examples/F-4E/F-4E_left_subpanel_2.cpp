@@ -100,7 +100,7 @@ static uint32_t modeAdjustedMaxSteps(uint32_t baseSteps, x27_step_mode_t mode) {
 
 // This function determines the maximum search steps for VVI home search.
 // It calculates a scaled float value.
-// It rounds the value up by adding 0.5f.
+// It rounds the value to the nearest integer by adding 0.5f.
 // It sets the value to VVI_HOME_MAX_STEPS if the result is smaller.
 static uint32_t vviHomeSearchMaxSteps() {
     float scaled = (float)modeAdjustedMaxSteps(VVI_HOME_MAX_STEPS, VVI_STEP_MODE) * VVI_HOME_SEARCH_SCALE_TRIM;
@@ -111,7 +111,7 @@ static uint32_t vviHomeSearchMaxSteps() {
 
 // This function determines the maximum search steps for AOA home search.
 // It calculates a scaled float value.
-// It rounds the value up by adding 0.5f.
+// It rounds the value to the nearest integer by adding 0.5f.
 // It sets the value to AOA_HOME_MAX_STEPS if the result is smaller.
 static uint32_t aoaHomeSearchMaxSteps() {
     float scaled = (float)modeAdjustedMaxSteps(AOA_HOME_MAX_STEPS, AOA_STEP_MODE) * AOA_HOME_SEARCH_SCALE_TRIM;

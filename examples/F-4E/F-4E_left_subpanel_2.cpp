@@ -55,6 +55,9 @@ static uint aoa_light_pwm_chan = 0;
 static unsigned char vviLightLevel = 0;
 static unsigned char aoaLightLevel = 0;
 
+// This function returns a scale factor based on the input mode.
+// It returns 2.0f for X27_MODE_HALF_STEP.
+// It returns 1.0f for full step, micro step, or other modes.
 static float modePositionScale(x27_step_mode_t mode) {
     switch (mode) {
         case X27_MODE_HALF_STEP:
@@ -66,6 +69,9 @@ static float modePositionScale(x27_step_mode_t mode) {
     }
 }
 
+// This function calculates the VVI position scale.
+// It calls modePositionScale with VVI_STEP_MODE.
+// It multiplies the result by VVI_POSITION_SCALE_TRIM.
 static float vviPositionScale() {
     return modePositionScale(VVI_STEP_MODE) * VVI_POSITION_SCALE_TRIM;
 }
@@ -92,6 +98,10 @@ static uint32_t modeAdjustedMaxSteps(uint32_t baseSteps, x27_step_mode_t mode) {
     return adjusted;
 }
 
+// This function determines the maximum search steps for VVI home search.
+// It calculates a scaled float value.
+// It rounds the value up by adding 0.5f.
+// It sets the value to VVI_HOME_MAX_STEPS if the result is smaller.
 static uint32_t vviHomeSearchMaxSteps() {
     float scaled = (float)modeAdjustedMaxSteps(VVI_HOME_MAX_STEPS, VVI_STEP_MODE) * VVI_HOME_SEARCH_SCALE_TRIM;
     uint32_t adjusted = (uint32_t)(scaled + 0.5f);
@@ -99,6 +109,10 @@ static uint32_t vviHomeSearchMaxSteps() {
     return adjusted;
 }
 
+// This function determines the maximum search steps for AOA home search.
+// It calculates a scaled float value.
+// It rounds the value up by adding 0.5f.
+// It sets the value to AOA_HOME_MAX_STEPS if the result is smaller.
 static uint32_t aoaHomeSearchMaxSteps() {
     float scaled = (float)modeAdjustedMaxSteps(AOA_HOME_MAX_STEPS, AOA_STEP_MODE) * AOA_HOME_SEARCH_SCALE_TRIM;
     uint32_t adjusted = (uint32_t)(scaled + 0.5f);

@@ -138,8 +138,8 @@ void setMotorCDrive(int direction, uint16_t drive_level) {
     if (direction > 0) {
         pwm_set_gpio_level(MOTOR_C_IN1_PIN, drive_level);
         pwm_set_gpio_level(MOTOR_C_IN2_PIN, 0);
-    // This block sets motor pins based on direction. If direction is negative, it sets IN1 to zero and IN2 to drive level.
-} else if (direction < 0) {
+    // A negative direction sets MOTOR_C_IN1_PIN to zero and MOTOR_C_IN2_PIN to the drive level.
+    } else if (direction < 0) {
         pwm_set_gpio_level(MOTOR_C_IN1_PIN, 0);
         pwm_set_gpio_level(MOTOR_C_IN2_PIN, drive_level);
     } else {

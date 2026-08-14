@@ -129,6 +129,9 @@ void ST7789::init(uint32_t baudrate) {
     sleep_ms(120);
 }
 
+// This function sends the CASET command.
+// It calculates the panel offsets based on the rotation value.
+// It prepares four bytes of data for the panel.
 void ST7789::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
     uint8_t data[4];
     sendCommand(0x2A); // CASET
@@ -200,12 +203,19 @@ void ST7789::fillScreen(uint16_t color) {
     sleep_us(2);
 }
 
+// This function sets the address window.
+// It sends two bytes of color data.
 void ST7789::drawPixel(uint16_t x, uint16_t y, uint16_t color) {
     setAddrWindow(x, y, x, y);
     uint8_t d[2] = { (uint8_t)(color >> 8), (uint8_t)color };
     sendData(d, 2);
 }
 
+// This function draws a character on the display.
+// It checks the character range.
+// It finds the glyph data.
+// It iterates through columns and rows.
+// It calls drawPixel for each set bit.
 void ST7789::drawChar(uint16_t x, uint16_t y, char c, uint16_t color) {
     if (c < 32 || c > 126) c = '?';
     const uint8_t* glyph = &font5x7[(c - 32) * 5];
@@ -219,6 +229,12 @@ void ST7789::drawChar(uint16_t x, uint16_t y, char c, uint16_t color) {
     }
 }
 
+// This function draws a filled rectangle.
+// It checks if width or height is zero.
+// It sets the address window.
+// It prepares a color buffer.
+// It controls the DC and CS pins.
+// It loops to send data in chunks.
 void ST7789::drawFillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
     if (w == 0 || h == 0) return;
     setAddrWindow(x, y, x + w - 1, y + h - 1);

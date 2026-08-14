@@ -78,7 +78,10 @@ void setMotorDrive(int direction, uint16_t drive_level) {
     if (direction > 0) {
         pwm_set_gpio_level(MOTOR_IN1_PIN, drive_level);
         pwm_set_gpio_level(MOTOR_IN2_PIN, 0);
-    } else if (direction < 0) {
+    // This block sets motor control pins based on direction.
+If direction is negative, it sets MOTOR_IN1_PIN to zero and MOTOR_IN2_PIN to drive_level.
+Otherwise, it calls stopMotor().
+} else if (direction < 0) {
         pwm_set_gpio_level(MOTOR_IN1_PIN, 0);
         pwm_set_gpio_level(MOTOR_IN2_PIN, drive_level);
     } else {
@@ -86,6 +89,11 @@ void setMotorDrive(int direction, uint16_t drive_level) {
     }
 }
 
+// This function chooses the drive level based on the error.
+It calculates a window size from g_motor.usable_half_range divided by four.
+The window size is set to five if it is less than five.
+If the absolute error is less than or equal to the window, it returns MOTOR_PWM_APPROACH_LEVEL.
+Otherwise, it returns MOTOR_PWM_DRIVE_LEVEL.
 uint16_t chooseDriveLevel(int32_t error) {
     int32_t window = g_motor.usable_half_range / 4;
     if (window < 5) window = 5;
@@ -95,6 +103,15 @@ uint16_t chooseDriveLevel(int32_t error) {
     return MOTOR_PWM_DRIVE_LEVEL;
 }
 
+// This function initializes the motor hardware.
+It sets MOTOR_IN1_PIN and MOTOR_IN2_PIN to PWM functions.
+It checks if the PWM slices for both pins match.
+If the slices do not match, it prints an error message and returns false.
+If they match, it sets g_motor.pwm_slice.
+It sets the PWM wrap and clock division.
+It stops the motor.
+It enables the PWM slice.
+It initializes MOTOR_ENCODER_A_PIN.
 bool initMotor() {
     gpio_set_function(MOTOR_IN1_PIN, GPIO_FUNC_PWM);
     gpio_set_function(MOTOR_IN2_PIN, GPIO_FUNC_PWM);
@@ -132,6 +149,13 @@ bool initMotor() {
     return true;
 }
 
+// This function updates the encoder count.
+It checks if g_motor.ready is true.
+It reads the encoder state.
+It calculates the transition value.
+It decodes the transition using QUADRATURE_DECODE_TABLE to find delta.
+It updates g_motor.encoder_count using the inverted state.
+It saves the current state to g_motor.encoder_prev.
 void updateEncoder() {
     if (!g_motor.ready) return;
 

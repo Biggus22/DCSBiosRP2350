@@ -138,6 +138,12 @@ static int32_t angleToX27Position(float angle_deg) {
     return steps;
 }
 
+// Checks if motorA is initialized or connected. If not, the function returns.
+// It maps the input value to a vertical velocity scale of -6.0 to 6.0.
+// It clamps the normalized value within the range of -6.0 and 6.0.
+// It calculates the angle using interpolateVviPositiveAngle.
+// If the normalized value is negative, it mirrors the angle onto the lower half.
+// It sets the position of motorA using angleToX27Position.
 void onPltVviNeedleChange(unsigned int newValue) {
     if (!motorA->motor.initialized || !motorA->connected) {
         return;
@@ -157,6 +163,11 @@ void onPltVviNeedleChange(unsigned int newValue) {
 }
 DcsBios::IntegerBuffer pltVviNeedleBuffer(0x2bc4, 0xffff, 0, onPltVviNeedleChange);
 
+// Checks if motorB is initialized or connected. If not, the function returns.
+// It maps the input value to an angle scale of 0.0 to 30.0.
+// It clamps the calculated AoA value within the range of 0.0 and 30.0.
+// It calculates the angle using a formula based on user calibration points.
+// It sets the position of motorB using angleToX27Position.
 void onPltAoaGaugeNeedleChange(unsigned int newValue) {
     if (!motorB->motor.initialized || !motorB->connected) {
         return;
@@ -176,6 +187,10 @@ DcsBios::IntegerBuffer pltAoaGaugeNeedleBuffer(0x2a94, 0xffff, 0, onPltAoaGaugeN
 static volatile uint8_t g_console_brightness = 0;
 static bool g_rgb_startup_done = false;
 
+// It sets the red, green, and blue values for the console backlight.
+// It iterates through all RGB LEDs.
+// It sets the pixel color for each LED.
+// It displays the panel RGB data.
 static void setRgbFromConsoleBrightness() {
     // Green console backlight style.
     const uint8_t r = 0;
@@ -187,6 +202,8 @@ static void setRgbFromConsoleBrightness() {
     panelRgb.show();
 }
 
+// It iterates through all PWM LED pins.
+// It sets the level for each pin using pwm_set_gpio_level.
 static void setPwmLedBrightness(uint8_t level) {
     for (uint i = 0; i < sizeof(PWM_LED_PINS); ++i) {
         pwm_set_gpio_level(PWM_LED_PINS[i], level);

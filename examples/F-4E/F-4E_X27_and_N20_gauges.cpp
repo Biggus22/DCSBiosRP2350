@@ -138,6 +138,7 @@ void setMotorCDrive(int direction, uint16_t drive_level) {
     if (direction > 0) {
         pwm_set_gpio_level(MOTOR_C_IN1_PIN, drive_level);
         pwm_set_gpio_level(MOTOR_C_IN2_PIN, 0);
+    // A negative direction sets MOTOR_C_IN1_PIN to zero and MOTOR_C_IN2_PIN to the drive level.
     } else if (direction < 0) {
         pwm_set_gpio_level(MOTOR_C_IN1_PIN, 0);
         pwm_set_gpio_level(MOTOR_C_IN2_PIN, drive_level);
@@ -146,6 +147,7 @@ void setMotorCDrive(int direction, uint16_t drive_level) {
     }
 }
 
+// This function selects a drive level based on the error. If the absolute error is less than or equal to the slow down window, it returns the approach level. Otherwise, it returns the drive level.
 uint16_t chooseMotorCDriveLevel(int32_t error) {
     if (motorCAbs(error) <= MOTOR_C_SLOWDOWN_WINDOW_COUNTS) {
         return MOTOR_C_PWM_APPROACH_LEVEL;
@@ -154,6 +156,7 @@ uint16_t chooseMotorCDriveLevel(int32_t error) {
     return MOTOR_C_PWM_DRIVE_LEVEL;
 }
 
+// This function prints a formatted string to the console.
 void logMotorCTarget(const char* prefix) {
     printf("Motor C %s target=%ld delta=%ld stop=%ld angle=%ld deg\n",
            prefix,
@@ -163,6 +166,7 @@ void logMotorCTarget(const char* prefix) {
            (long)(g_motorC.target_stop_index * 90));
 }
 
+// This function updates the target stop index and target count. It adjusts the motion direction if the next stop index exceeds the total stops or is less than zero. It updates the target stop index, segment start count, and target count. It logs the seeking status.
 void advanceMotorCTarget() {
     int32_t next_stop_index = g_motorC.target_stop_index + g_motorC.motion_direction;
 

@@ -78,6 +78,9 @@ bool g_heartbeat_ready = false;
 
 void update_heartbeat_led();
 
+// This function waits for USB serial connection.
+// It stops if the timeout expires.
+// It sleeps for 20 milliseconds between checks.
 void wait_for_serial_attach_window() {
     absolute_time_t deadline = make_timeout_time_ms(SERIAL_WAIT_TIMEOUT_MS);
     while (!stdio_usb_connected()) {
@@ -88,6 +91,12 @@ void wait_for_serial_attach_window() {
     }
 }
 
+// This function initializes the heartbeat LED.
+// It sets the ready flag if the feature is enabled.
+// It initializes the LED with one pixel.
+// It prints an error if initialization fails.
+// It sets pixel zero to black.
+// It shows the LED.
 void init_heartbeat_led() {
     if (!HEARTBEAT_ENABLED) {
         g_heartbeat_ready = false;
@@ -103,6 +112,11 @@ void init_heartbeat_led() {
     g_heartbeat_led.show();
 }
 
+// This function turns off the backlight.
+// It initializes each disable pin.
+// It sets the pin direction to output.
+// It disables pull resistors on each pin.
+// It sets the pin value to zero.
 void force_backlight_off() {
     for (size_t i = 0; i < BACKLIGHT_DISABLE_PIN_COUNT; ++i) {
         uint pin = BACKLIGHT_DISABLE_PINS[i];
@@ -113,6 +127,13 @@ void force_backlight_off() {
     }
 }
 
+// This function configures unused STI inputs.
+// It initializes each input pin.
+// It sets the pin direction to output.
+// It disables pull resistors on each pin.
+// It sets the drive strength to 12MA.
+// It sets the slew rate to fast.
+// It sets the pin value to zero.
 void tie_unused_sti_inputs_defined_levels() {
     for (size_t i = 0; i < UNUSED_STI_INPUT_PIN_COUNT; ++i) {
         uint pin = UNUSED_STI_INPUT_PINS[i];

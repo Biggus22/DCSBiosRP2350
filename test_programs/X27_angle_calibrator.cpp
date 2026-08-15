@@ -30,10 +30,12 @@ constexpr bool MOTOR_DIRECTION_INVERTED[MOTOR_COUNT] = {
     false,
 };
 
+// This function returns the motor name based on the index.
 const char* motor_name(int index) {
     return (index == MOTOR_VVI) ? "VVI" : "AoA";
 }
 
+// This function returns the home sensor pin based on the index.
 uint motor_home_pin(int index) {
     return (index == MOTOR_VVI) ? VVI_HOME_SENSOR_PIN : AOA_HOME_SENSOR_PIN;
 }
@@ -56,6 +58,7 @@ struct MotionTracker {
     uint64_t absolute_steps_since_boot = 0;
 };
 
+// This function converts a step mode enum value to a string.
 const char* mode_to_text(x27_step_mode_t mode) {
     switch (mode) {
         case X27_MODE_FULL_STEP: return "full";
@@ -65,7 +68,14 @@ const char* mode_to_text(x27_step_mode_t mode) {
     }
 }
 
-bool parse_step_mode(char token, x27_step_mode_t& mode) {
+bool // This function parses a character token into a step mode.
+// It converts the token to lowercase before checking the value.
+// It sets the mode to X27_MODE_FULL_STEP if the token is 'f'.
+// It sets the mode to X27_MODE_HALF_STEP if the token is 'h'.
+// It sets the mode to X27_MODE_MICRO_STEP if the token is 'm'.
+// It returns true for valid tokens.
+// It returns false for invalid tokens.
+// bool parse_step_mode(char token, x27_step_mode_t& mode) {
     switch ((char)tolower((unsigned char)token)) {
         case 'f':
             mode = X27_MODE_FULL_STEP;

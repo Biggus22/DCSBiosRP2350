@@ -31,6 +31,7 @@ AW9523B::AW9523B(i2c_inst_t* i2c, uint8_t address)
         return true;
     }
 
+// This function modifies the output register for a specific pin. It clears the bit corresponding to the pin value. It writes the new value to the register.
 void AW9523B::setPinOutput(uint8_t pin) {
     uint8_t reg = (pin < 8) ? AW9523B_REG_CONFIG_PORT0 : AW9523B_REG_CONFIG_PORT1;
     uint8_t bit = pin % 8;
@@ -42,6 +43,7 @@ void AW9523B::setPinOutput(uint8_t pin) {
     }
 }
 
+// This function modifies the input register for a specific pin. It sets the bit corresponding to the pin value. It writes the new value to the register.
 void AW9523B::setPinInput(uint8_t pin) {
     uint8_t reg = (pin < 8) ? AW9523B_REG_CONFIG_PORT0 : AW9523B_REG_CONFIG_PORT1;
     uint8_t bit = pin % 8;
@@ -53,6 +55,7 @@ void AW9523B::setPinInput(uint8_t pin) {
     }
 }
 
+// This function controls the output state of a pin. It reads the current register value. It sets or clears the bit based on the input value. It writes the resulting value to the register.
 void AW9523B::writePin(uint8_t pin, bool value) {
     uint8_t reg = (pin < 8) ? AW9523B_REG_OUTPUT_PORT0 : AW9523B_REG_OUTPUT_PORT1;
     uint8_t bit = pin % 8;
@@ -68,6 +71,7 @@ void AW9523B::writePin(uint8_t pin, bool value) {
     }
 }
 
+// This function reads the input register for a specific pin. It returns the value of the bit corresponding to the pin. It returns false if the register read fails.
 bool AW9523B::readPin(uint8_t pin) {
     uint8_t reg = (pin < 8) ? AW9523B_REG_INPUT_PORT0 : AW9523B_REG_INPUT_PORT1;
     uint8_t bit = pin % 8;

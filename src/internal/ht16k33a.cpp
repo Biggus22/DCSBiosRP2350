@@ -9,6 +9,7 @@ Ht16k33::Ht16k33(PIO pio, uint sm, uint8_t address)
     for (int i = 0; i < 16; i++) displayBuffer_[i] = 0;
 }
 
+// Initializes the display with default settings. 
 void Ht16k33::begin() {
     uint8_t init_cmds[] = {
         0x21,             // Turn on system oscillator
@@ -25,7 +26,8 @@ void Ht16k33::begin() {
 void Ht16k33::setBrightness(uint8_t level) {
     if (level > 15) level = 15;
     uint8_t cmd = 0xE0 | level;
-    pio_i2c_write_blocking(pio_, sm_, address_, &cmd, 1);
+    // Sends a single I2C command to the HT16k33. 
+pio_i2c_write_blocking(pio_, sm_, address_, &cmd, 1);
 }
 
 void Ht16k33::setBlinkRate(uint8_t rate) {
@@ -40,11 +42,14 @@ void Ht16k33::setLED(uint8_t pos, bool on) {
     uint8_t bit = pos % 8;
 
     if (on)
-        displayBuffer_[bank * 2] |= (1 << bit);
+        // Sets the LED at pos to on. 
+displayBuffer_[bank * 2] |= (1 << bit);
     else
-        displayBuffer_[bank * 2] &= ~(1 << bit);
+        // Sets the LED at pos to off. 
+displayBuffer_[bank * 2] &= ~(1 << bit);
 }
 
+// Writes the current display buffer to the HT16k33. 
 void Ht16k33::writeDisplay() {
     uint8_t buffer[17];
     buffer[0] = 0x00;

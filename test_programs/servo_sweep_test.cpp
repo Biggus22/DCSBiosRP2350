@@ -47,6 +47,7 @@ static uint16_t pulseWidthUsToPwmLevel(uint32_t us) {
     return static_cast<uint16_t>(level);
 }
 
+// This function initializes a PWM pin for a servo. It configures the pin with a clock divider of 64 and a pulse width wrap of 39062. Then it initializes the PWM with a true flag.
 static void initServoPwmPin(uint pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(pin);
@@ -57,10 +58,12 @@ static void initServoPwmPin(uint pin) {
     pwm_init(slice, &config, true);
 }
 
+// This function sets the pulse width for a servo in microseconds. It converts the pulse width to a PWM level and sets the GPIO pin.
 static void setServoPulseUs(uint pin, uint16_t pulseWidthUs) {
     pwm_set_gpio_level(pin, pulseWidthUsToPwmLevel(pulseWidthUs));
 }
 
+// This function clamps the pulse width to be within the specified minimum and maximum limits.
 static uint16_t clampPulseUs(uint16_t pulseWidthUs, uint16_t minUs, uint16_t maxUs) {
     if (pulseWidthUs < minUs) {
         return minUs;
@@ -71,6 +74,7 @@ static uint16_t clampPulseUs(uint16_t pulseWidthUs, uint16_t minUs, uint16_t max
     return pulseWidthUs;
 }
 
+// This function updates the current pulse width by a given delta in microseconds. It clamps the result to the allowed range and returns true if the pulse width changed, otherwise false.
 static bool updatePulseByDelta(uint16_t* currentPulseUs, int32_t deltaUs) {
     int32_t next = static_cast<int32_t>(*currentPulseUs) + deltaUs;
     if (next < 0) {

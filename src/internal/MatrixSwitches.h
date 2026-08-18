@@ -20,6 +20,7 @@ private:
 	char lastState_;
 	bool reverse_;
 
+// Initializes member variables and reads the initial switch state from the panel.
 	void init_(const char* msg, uint row, uint col, bool reverse) {
 		msg_ = msg;
 		row_ = row;
@@ -28,10 +29,14 @@ private:
 		reverse_ = reverse;
 	}
 
+// Toggles lastState_ between 0 and -1.
 	void resetState() {
 		lastState_ = (lastState_ == 0) ? -1 : 0;
 	}
 
+// Reads the switch state and inverts it if reverse_ is set.
+// Sends a DCS BIOS message when the state changes.
+// Updates lastState_ only if the message send succeeds.
 	void pollInput() {
 		char state = swPanel.GetSwitchState(row_, col_);
 		if (reverse_) state = !state;
@@ -53,6 +58,7 @@ public:
 		init_(msg, row, col, false);
 	}
 
+// Calls resetState to toggle the stored state.
 	void resetThisState() {
 		resetState();
 	}

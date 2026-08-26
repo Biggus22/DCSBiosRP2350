@@ -146,6 +146,7 @@ void tie_unused_sti_inputs_defined_levels() {
     }
 }
 
+// This function initializes the SHARED_RESET_PIN.
 void init_shared_reset_pin() {
     // Keep shared reset control local in this test. If polarity is opposite on
     // your board, flip RESET_ACTIVE_LOW above.
@@ -158,6 +159,7 @@ void init_shared_reset_pin() {
     sleep_ms(2);
 }
 
+// This function sets the level of the MODE_SELECT_PIN.
 void set_mode_select_level(uint8_t level) {
     if (MODE_SELECT_PIN < 0) {
         return;
@@ -165,6 +167,7 @@ void set_mode_select_level(uint8_t level) {
     gpio_put((uint)MODE_SELECT_PIN, level ? 1 : 0);
 }
 
+// This function initializes the MODE_SELECT_PIN.
 void init_mode_select_pin() {
     if (MODE_SELECT_PIN < 0) {
         return;
@@ -179,6 +182,10 @@ void init_mode_select_pin() {
     sleep_ms(1);
 }
 
+// This function drives the pin.
+// If open_drain_style is false, it sets the pin as an output and sets the level.
+// If open_drain_style is true and level is true, it sets the pin to input mode and disables pulls.
+// If open_drain_style is true and level is false, it sets the pin as an output and sets it to 0.
 void drive_logic_level(uint pin, bool level, bool open_drain_style) {
     if (!open_drain_style) {
         gpio_set_dir(pin, GPIO_OUT);

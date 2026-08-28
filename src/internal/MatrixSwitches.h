@@ -20,7 +20,8 @@ private:
 	char lastState_;
 	bool reverse_;
 
-	void init_(const char* msg, uint row, uint col, bool reverse) {
+	// This function initializes the member variables.
+void init_(const char* msg, uint row, uint col, bool reverse) {
 		msg_ = msg;
 		row_ = row;
 		col_ = col;
@@ -28,11 +29,13 @@ private:
 		reverse_ = reverse;
 	}
 
-	void resetState() {
+	// This function toggles the last state between 0 and -1.
+void resetState() {
 		lastState_ = (lastState_ == 0) ? -1 : 0;
 	}
 
-	void pollInput() {
+	// This function checks the switch state. If the reverse flag is set, it inverts the state. If the state changes, it attempts to send a message. If the attempt succeeds, it updates the last state.
+void pollInput() {
 		char state = swPanel.GetSwitchState(row_, col_);
 		if (reverse_) state = !state;
 		if (state != lastState_) {
@@ -53,7 +56,8 @@ public:
 		init_(msg, row, col, false);
 	}
 
-	void resetThisState() {
+	// This function calls resetState.
+void resetThisState() {
 		resetState();
 	}
 };

@@ -49,10 +49,12 @@ namespace DcsBios {
 	extern void core1_task();
     ProtocolParser parser;
 
+    // This function prints a setup message.
     void setup() {
         printf("DCS-BIOS setup started...\n");
     }
 
+    // This function processes characters from the multicore FIFO. It polls inputs. It loops all export stream listeners.
     void loop() {
         while (multicore_fifo_rvalid()) {
             char ch = (char)multicore_fifo_pop_blocking(); // Get character from Core 1
@@ -65,6 +67,7 @@ namespace DcsBios {
     static mutex_t g_fifo_mutex;
     static bool g_fifo_mutex_inited = false;
 
+    // This function initializes the FIFO mutex if it is not initialized. It enters the mutex in a blocking manner.
     static inline void fifo_lock() {
         if (!g_fifo_mutex_inited) {
             mutex_init(&g_fifo_mutex);
@@ -72,14 +75,17 @@ namespace DcsBios {
         }
         mutex_enter_blocking(&g_fifo_mutex);
     }
+    // This function exits the FIFO mutex.
     static inline void fifo_unlock() { mutex_exit(&g_fifo_mutex); }
 
+    // This function pushes a byte to the multicore FIFO in a blocking manner.
     static inline void fifo_push_byte_blocking(uint8_t b) {
         // Multicore FIFO is 32-bit; use low 8 bits for ASCII byte
         multicore_fifo_push_blocking((uint32_t)b);
     }
 
     // Build "TAG VALUE\n" once, then push all bytes inside a single critical section.
+    // This function formats a message and an argument into a line. It returns false if formatting fails or the line is too long. It locks the FIFO and pushes the line bytes.
     bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
         // 1) Format entire line
         char line[96];

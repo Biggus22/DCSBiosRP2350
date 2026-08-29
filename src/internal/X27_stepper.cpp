@@ -244,6 +244,8 @@ bool x27_init_gpio(x27_motor_t *motor, const x27_gpio_config_t *config, x27_step
     return true;
 }
 
+// Initialize VID6606 motor driver.
+
 bool x27_init_vid6606(x27_motor_t *motor, const x27_vid6606_config_t *config, x27_step_mode_t mode) {
     if (!motor || !config) return false;
     if (config->pin_step == config->pin_dir) return false;
@@ -297,6 +299,8 @@ bool x27_init_vid6606(x27_motor_t *motor, const x27_vid6606_config_t *config, x2
     return true;
 }
 
+// Configure homing sensor.
+
 bool x27_config_homing_sensor(x27_motor_t *motor, int pin, bool active_high, bool pull_up) {
     if (!motor) return false;
     motor->homing_pin = pin;
@@ -312,6 +316,8 @@ bool x27_config_homing_sensor(x27_motor_t *motor, int pin, bool active_high, boo
     }
     return true;
 }
+
+// Home motor using homing sensor.
 
 bool x27_home_with_sensor(x27_motor_t *motor, int8_t dir, uint32_t max_steps) {
     if (!motor || !motor->initialized || !motor->homing_configured) return false;
@@ -333,6 +339,8 @@ bool x27_home_with_sensor(x27_motor_t *motor, int8_t dir, uint32_t max_steps) {
     }
     return false;
 }
+
+// Home motor to stop position.
 
 void x27_home_to_stop(x27_motor_t *motor, int8_t dir, uint32_t max_steps) {
     if (!motor || !motor->initialized) return;

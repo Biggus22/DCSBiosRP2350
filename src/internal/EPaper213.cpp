@@ -129,6 +129,7 @@ void Epaper213::sendData(const uint8_t* data, size_t len) {
     gpio_put(pins_.cs, 1);
 }
 
+// Wait for the e-Paper display to become not busy within a timeout of 500 ms.
 void Epaper213::waitWhileBusy() {
     // Busy is HIGH while the panel is busy; add a timeout so we never block DCS-BIOS
     const uint32_t timeout_ms = 500; // hard ceiling
@@ -141,6 +142,7 @@ void Epaper213::waitWhileBusy() {
     }
 }
 
+// Set the drawing window on the e-Paper display.
 void Epaper213::setWindows(uint8_t xStart, uint8_t yStart, uint8_t xEnd, uint8_t yEnd) {
     sendCommand(0x44);
     sendData(xStart >> 3);
@@ -153,6 +155,7 @@ void Epaper213::setWindows(uint8_t xStart, uint8_t yStart, uint8_t xEnd, uint8_t
     sendData((yEnd >> 8) & 0xFF);
 }
 
+// Set the cursor position for drawing on the e-Paper display.
 void Epaper213::setCursor(uint8_t x, uint8_t y) {
     sendCommand(0x4E);
     sendData(x & 0xFF);
@@ -162,6 +165,7 @@ void Epaper213::setCursor(uint8_t x, uint8_t y) {
     sendData((y >> 8) & 0xFF);
 }
 
+// Refresh the e-Paper display with the specified control settings.
 void Epaper213::refresh(uint8_t ctrl) {
     sendCommand(0x22);
     sendData(ctrl);

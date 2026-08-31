@@ -185,6 +185,9 @@ void advanceMotorCTarget() {
     logMotorCTarget("seeking");
 }
 
+// Initializes unused pins as outputs.
+// Sets the PWM function for motor C pins.
+// Returns false if the PWM slices for the pins are not the same.
 bool initMotorC() {
     for (uint pin : MOTOR_C_UNUSED_PINS) {
         gpio_init(pin);
@@ -248,6 +251,7 @@ bool initMotorC() {
     return true;
 }
 
+// Updates the motor C encoder count using quadrature decoding.
 void updateMotorCEncoder() {
     if (!g_motorC.ready) return;
 
@@ -257,6 +261,9 @@ void updateMotorCEncoder() {
     g_motorC.encoder_prev = current;
 }
 
+// Logs motor C encoder data if the timer expires.
+// Calculates delta, counts per second, and RPM.
+// Updates the last reported encoder count and the next log time.
 void maybeLogMotorCEncoder() {
     if (!g_motorC.ready) return;
     if (!time_reached(g_motorC.next_encoder_log)) return;

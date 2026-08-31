@@ -135,6 +135,7 @@ void updateStatusLed(bool usbSeen,
 }
 
 // This function waits for UART transmission completion. It loops while the UART is not writable. It sleeps for 200 microseconds.
+// This function waits for the UART to become writable.
 inline void waitUartTxComplete(const Rs485Port& port) {
     while (!uart_is_writable(port.uart)) {
     }
@@ -152,14 +153,17 @@ void initRs485Port(const Rs485Port& port, uint32_t baudrate) {
     uart_set_format(port.uart, 8, 1, UART_PARITY_NONE);
 }
 
+// This function enables the RS485 transmitter.
 inline void rs485TxEnable(const Rs485Port& port) {
     gpio_put(port.enPin, 1);
 }
 
+// This function disables the RS485 transmitter.
 inline void rs485TxDisable(const Rs485Port& port) {
     gpio_put(port.enPin, 0);
 }
 
+// This function sends a character via RS485.
 void rs485SendChar(const Rs485Port& port, char c) {
     rs485TxEnable(port);
     uart_putc_raw(port.uart, c);

@@ -22,6 +22,8 @@ static const uint8_t SEQ_UNIPOLAR_FULL_DOUBLE[4][4] = {
     {1,0,0,1}
 };
 
+// This function runs a bipolar H-bridge test for the 28BYJ-48 motor.
+// It initializes GPIO pins and processes serial commands during motor sweeps.
 int main() {
     stdio_init_all();
 
@@ -55,9 +57,11 @@ int main() {
                     use_bipolar = true;
                     printf("Mode: bipolar\n");
                 } else if (ch == 'u') {
+                    // This block sets the use_bipolar variable to false. It prints the current mode as unipolar.
                     use_bipolar = false;
                     printf("Mode: unipolar\n");
                 } else if (ch == 't') {
+                    // This block toggles the use_bipolar variable. It prints the new mode status.
                     use_bipolar = !use_bipolar;
                     printf("Mode toggled: %s\n", use_bipolar ? "bipolar" : "unipolar");
                 }
@@ -67,7 +71,11 @@ int main() {
                     for (int p = 0; p < 4; ++p) gpio_put(STEP_PINS[p], (p == pin) ? 1 : 0);
                     printf("Driving IN%d high\n", pin+1);
                     continue;
+// This block cycles coil A through three states: off, A+, and A-.
+// It uses a static counter modulo 3 to track the state.
+// It sets the corresponding pins and prints the state name.
                 } else if (ch == 'a') {
+                    // This block manages the coil A state. It increments the a_state variable modulo 3. It sets the output pins based on the current state. It prints the coil A status.
                     // toggle coil A: IN1/IN2
                     static int a_state = 0;
                     a_state = (a_state + 1) % 3;
@@ -75,6 +83,9 @@ int main() {
                     if (a_state == 1) { gpio_put(STEP_PINS[0], 1); gpio_put(STEP_PINS[1], 0); printf("Coil A A+\n"); }
                     if (a_state == 2) { gpio_put(STEP_PINS[0], 0); gpio_put(STEP_PINS[1], 1); printf("Coil A A-\n"); }
                     continue;
+// This block cycles coil B through three states: off, B+, and B-.
+// It uses a static counter modulo 3 to track the state.
+// It sets the corresponding pins and prints the state name.
                 } else if (ch == 'B') {
                     // toggle coil B: IN3/IN4
                     static int b_state = 0;
@@ -83,6 +94,7 @@ int main() {
                     if (b_state == 1) { gpio_put(STEP_PINS[2], 1); gpio_put(STEP_PINS[3], 0); printf("Coil B B+\n"); }
                     if (b_state == 2) { gpio_put(STEP_PINS[2], 0); gpio_put(STEP_PINS[3], 1); printf("Coil B B-\n"); }
                     continue;
+// This block sets the step delay to 5000 for slow stepping.
                 } else if (ch == 's') {
                     step_delay_us = 5000; printf("Slow step\n"); continue;
                 } else if (ch == 'f') {

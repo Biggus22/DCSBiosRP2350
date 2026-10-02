@@ -94,6 +94,7 @@ bool Epaper213::init(uint32_t baud) {
     return true;
 }
 
+// This function performs a hardware reset sequence. It sets the reset pin high for twenty milliseconds. It sets the reset pin low for two milliseconds. It sets the reset pin high for twenty milliseconds.
 void Epaper213::reset() {
     gpio_put(pins_.rst, 1);
     sleep_ms(20);
@@ -103,6 +104,7 @@ void Epaper213::reset() {
     sleep_ms(20);
 }
 
+// This function sends a single command byte. It sets the data and chip select pins low. It writes the command byte to the SPI bus. It sets the chip select pin high.
 void Epaper213::sendCommand(uint8_t cmd) {
     gpio_put(pins_.dc, 0);
     gpio_put(pins_.cs, 0);
@@ -110,6 +112,7 @@ void Epaper213::sendCommand(uint8_t cmd) {
     gpio_put(pins_.cs, 1);
 }
 
+// This function sends a single data byte. It sets the data and chip select pins low. It writes the data byte to the SPI bus. It sets the chip select pin high.
 void Epaper213::sendData(uint8_t data) {
     gpio_put(pins_.dc, 1);
     gpio_put(pins_.cs, 0);
@@ -117,6 +120,7 @@ void Epaper213::sendData(uint8_t data) {
     gpio_put(pins_.cs, 1);
 }
 
+// This function sends a block of data. It returns if the data pointer is null or the length is zero. It sets the data and chip select pins low. It writes the data block to the SPI bus. It sets the chip select pin high.
 void Epaper213::sendData(const uint8_t* data, size_t len) {
     if (!data || len == 0) return;
     gpio_put(pins_.dc, 1);
@@ -125,6 +129,7 @@ void Epaper213::sendData(const uint8_t* data, size_t len) {
     gpio_put(pins_.cs, 1);
 }
 
+// Wait for the e-Paper display to become not busy within a timeout of 500 ms.
 void Epaper213::waitWhileBusy() {
     // Busy is HIGH while the panel is busy; add a timeout so we never block DCS-BIOS
     const uint32_t timeout_ms = 500; // hard ceiling
@@ -137,6 +142,7 @@ void Epaper213::waitWhileBusy() {
     }
 }
 
+// Set the drawing window on the e-Paper display.
 void Epaper213::setWindows(uint8_t xStart, uint8_t yStart, uint8_t xEnd, uint8_t yEnd) {
     sendCommand(0x44);
     sendData(xStart >> 3);
@@ -149,6 +155,7 @@ void Epaper213::setWindows(uint8_t xStart, uint8_t yStart, uint8_t xEnd, uint8_t
     sendData((yEnd >> 8) & 0xFF);
 }
 
+// Set the cursor position for drawing on the e-Paper display.
 void Epaper213::setCursor(uint8_t x, uint8_t y) {
     sendCommand(0x4E);
     sendData(x & 0xFF);
@@ -158,6 +165,7 @@ void Epaper213::setCursor(uint8_t x, uint8_t y) {
     sendData((y >> 8) & 0xFF);
 }
 
+// Refresh the e-Paper display with the specified control settings.
 void Epaper213::refresh(uint8_t ctrl) {
     sendCommand(0x22);
     sendData(ctrl);

@@ -12,11 +12,13 @@ namespace DcsBios {
 	class PotentiometerEWMA : PollingInput, public ResettableInput {
 	private:
 		// This function resets the last state.
+// This function sets lastState_ to zero or negative one.
 void resetState() {
 			lastState_ = (lastState_==0)?-1:0;
 		}
 
 		// This function reads the ADC input. It maps the raw value to an unsigned integer state. It updates the accumulator using the EWMA divisor. It calculates a target state. It then checks if the state change exceeds the hysteresis threshold. If the change is significant, it sends the state message.
+// This function reads an ADC value.
 void pollInput() {
 			uint rawValue;
 
@@ -40,11 +42,13 @@ void pollInput() {
 
 			if (target > lastState_ + maxStep) {
 				sendState = lastState_ + maxStep;
-			} else if (target + maxStep < lastState_) {
+			// Update sendState if target plus maxStep is less than lastState_.
+} else if (target + maxStep < lastState_) {
 				sendState = lastState_ - maxStep;
 			}
 
-			// Only send if change exceeds hysteresis (or near extremes)
+			// Check if the state change exceeds hysteresis or reaches extremes.
+// Only send if change exceeds hysteresis (or near extremes)
 			if (((lastState_ > sendState && (lastState_ - sendState > hysteresis)))
 				|| ((sendState > lastState_) && (sendState - lastState_ > hysteresis))
 				|| ((sendState > (65535 - hysteresis) && sendState > lastState_))
@@ -103,7 +107,8 @@ void SetControl(const char* msg) {
 			msg_ = msg;
 		}
 
-		void resetThisState() {
+		// This function calls resetState to reset the state.
+void resetThisState() {
 			this->resetState();
 		}
 	};
@@ -121,7 +126,8 @@ void SetControl(const char* msg) {
 			adc_select_input(adc_channel_);
 			uint rawValue = adc_read();
 
-			// Quantize by dropping `dropBits` LSBs (simple shift with rounding)
+			// Quantize the value by dropping low bits.
+// Quantize by dropping `dropBits` LSBs (simple shift with rounding)
 			const uint quant = (rawValue + (1u << (dropBits ? (dropBits - 1) : 0))) >> dropBits;
 			const unsigned int maxRaw = 4095u >> dropBits;
 

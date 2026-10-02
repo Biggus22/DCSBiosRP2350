@@ -78,6 +78,9 @@ bool g_heartbeat_ready = false;
 
 void update_heartbeat_led();
 
+// This function waits for USB serial connection.
+// It stops if the timeout expires.
+// It sleeps for 20 milliseconds between checks.
 void wait_for_serial_attach_window() {
     absolute_time_t deadline = make_timeout_time_ms(SERIAL_WAIT_TIMEOUT_MS);
     while (!stdio_usb_connected()) {
@@ -88,6 +91,12 @@ void wait_for_serial_attach_window() {
     }
 }
 
+// This function initializes the heartbeat LED.
+// It sets the ready flag if the feature is enabled.
+// It initializes the LED with one pixel.
+// It prints an error if initialization fails.
+// It sets pixel zero to black.
+// It shows the LED.
 void init_heartbeat_led() {
     if (!HEARTBEAT_ENABLED) {
         g_heartbeat_ready = false;
@@ -103,6 +112,11 @@ void init_heartbeat_led() {
     g_heartbeat_led.show();
 }
 
+// This function turns off the backlight.
+// It initializes each disable pin.
+// It sets the pin direction to output.
+// It disables pull resistors on each pin.
+// It sets the pin value to zero.
 void force_backlight_off() {
     for (size_t i = 0; i < BACKLIGHT_DISABLE_PIN_COUNT; ++i) {
         uint pin = BACKLIGHT_DISABLE_PINS[i];
@@ -113,6 +127,13 @@ void force_backlight_off() {
     }
 }
 
+// This function configures unused STI inputs.
+// It initializes each input pin.
+// It sets the pin direction to output.
+// It disables pull resistors on each pin.
+// It sets the drive strength to 12MA.
+// It sets the slew rate to fast.
+// It sets the pin value to zero.
 void tie_unused_sti_inputs_defined_levels() {
     for (size_t i = 0; i < UNUSED_STI_INPUT_PIN_COUNT; ++i) {
         uint pin = UNUSED_STI_INPUT_PINS[i];
@@ -125,6 +146,7 @@ void tie_unused_sti_inputs_defined_levels() {
     }
 }
 
+// This function initializes the SHARED_RESET_PIN.
 void init_shared_reset_pin() {
     // Keep shared reset control local in this test. If polarity is opposite on
     // your board, flip RESET_ACTIVE_LOW above.
@@ -137,6 +159,7 @@ void init_shared_reset_pin() {
     sleep_ms(2);
 }
 
+// This function sets the level of the MODE_SELECT_PIN.
 void set_mode_select_level(uint8_t level) {
     if (MODE_SELECT_PIN < 0) {
         return;
@@ -144,6 +167,7 @@ void set_mode_select_level(uint8_t level) {
     gpio_put((uint)MODE_SELECT_PIN, level ? 1 : 0);
 }
 
+// This function initializes the MODE_SELECT_PIN.
 void init_mode_select_pin() {
     if (MODE_SELECT_PIN < 0) {
         return;
@@ -158,6 +182,10 @@ void init_mode_select_pin() {
     sleep_ms(1);
 }
 
+// This function drives the pin.
+// If open_drain_style is false, it sets the pin as an output and sets the level.
+// If open_drain_style is true and level is true, it sets the pin to input mode and disables pulls.
+// If open_drain_style is true and level is false, it sets the pin as an output and sets it to 0.
 void drive_logic_level(uint pin, bool level, bool open_drain_style) {
     if (!open_drain_style) {
         gpio_set_dir(pin, GPIO_OUT);

@@ -5,7 +5,6 @@
 #include "internal/FoxConfig.h"
 #include "internal/heartbeat.h"
 #include "internal/I2cBusHwMaster.h"
-#include "internal/I2cProtocol.h"
 #include "internal/Addresses.h"
 
 using namespace DcsBios;

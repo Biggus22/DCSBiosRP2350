@@ -1,5 +1,5 @@
 #include "I2cOutputListener.h"
-#include "I2cCommand.h"
+#include "I2cFrame.h"
 
 namespace DcsBios {
 

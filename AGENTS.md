@@ -76,6 +76,33 @@ Gated behind `DCSBIOS_RS485_ARDUINO` compile flag (`target_compile_definitions(.
 | WS2812/NeoPixel | PIO | `ws2812.h/.cpp` + `ws2812.pio` |
 | PIO I2C | PIO | `pio_i2c.h/.cpp` + `i2c.pio` |
 
+## I2C subsystem
+
+The RP2350 is the I2C **master** on `i2c1` (GP6 SDA / GP7 SCL, 100 kHz default).
+Two directions exist:
+
+- **sim -> panel** (DCS-BIOS drives a remote output): `I2cOutputListener`, a
+  global `Int16Buffer` subclass. Edge-triggered, sends only on change. Scale
+  modes: `LED_TOGGLE`, `LED_BRIGHTNESS`, `STEPS_16BIT`, `ANGLE_CENTIDEG`,
+  `BACKLIGHT` (cmd 0x09).
+- **panel -> sim** (an input sub-panel on the same PCB reports switches/pots):
+  construct an `I2cInputPanel` (owns the transaction, `poll()` it once per pass
+  *before* `DcsBios::loop()`), then wrap it in `I2cInputSwitch2Pos`,
+  `I2cInputSwitch3Pos2Bit` or `I2cInputPotentiometer`. These are
+  `PollingInput` subclasses with the same debounce/EWMA/hysteresis semantics as
+  the GPIO-backed classes.
+
+Wire frame is `[reg][cmd][len][data...][crc8]`, CRC-8 poly 0x07 init 0x00 no final
+XOR (CRC-8/ATM, **not** Dallas/Maxim 1-Wire). A slave sets bit 0x80 in `reg` on
+its response frames. `I2cBusHwMaster::readFrameSized()` is the only working read
+path — the older `readFrame()` always requests 254 bytes and cannot talk to a
+real slave. `I2cBus::recoverBus()` hand-clocks SCL out of a wedged state
+(SDK 2.x removed `i2c_recover_bus`); the poller calls it every 20 failed polls.
+
+Reference slave sketches live in `arduino_sketches/`, each with a copy of
+`i2c_slave_defs.h` (keep the copies in sync by hand — they have drifted before).
+External 4.7 kΩ pull-ups to 3.3 V are mandatory; the internal ones are too weak.
+
 ## Test programs
 
 Standalone `.cpp` files in `test_programs/` — no test framework. Each is a complete firmware binary. Build by uncommenting its `add_executable` in `CMakeLists.txt`. The RS485 framing test (`rs485_arduino_framing_test.cpp`) runs on the host PC's serial console.

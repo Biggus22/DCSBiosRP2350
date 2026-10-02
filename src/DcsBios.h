@@ -50,7 +50,8 @@ namespace DcsBios {
     ProtocolParser parser;
 
     void setup() {
-        printf("DCS-BIOS setup started...\n");
+        // NOTE: no printf here — USB CDC carries DCS-BIOS "TAG VALUE" traffic
+        // and any banner line breaks PC-side parsing.
     }
 
     void loop() {
@@ -166,9 +167,8 @@ namespace DcsBios {
 #include "internal/I2cFrame.h"
 #include "internal/I2cBus.h"
 #include "internal/I2cBusHwMaster.h"
-#include "internal/I2cCommand.h"
-#include "internal/I2cProtocol.h"
 #include "internal/I2cOutputListener.h"
+#include "internal/I2cInputPanel.h"
 
 namespace DcsBios {
 	template<unsigned int first, unsigned int second>

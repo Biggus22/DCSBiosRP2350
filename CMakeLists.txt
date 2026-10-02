@@ -53,12 +53,18 @@ pico_sdk_init()
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Left_Utility_RP2350-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ICS_RP2040-Zero.cpp)
 #add_executable(DCSBiosRP2350 examples/F-4E/F-4E_left_subpanel_ST7789.cpp)
-# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Right_Utility_RP2350-Zero)
-#add_executable(DCSBiosRP2350 examples/F-4E/F-4E_TACAN_RP2350-Zero.cpp)
+ # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Right_Utility_RP2350-Zero)
+ # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_TACAN_RP2350-Zero.cpp)
+
+#****** Interior Lighting Console (RP2350-Zero + CH32V003 I2C panel) *********
+add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Interior_Lighting_Console_RP2350-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
 # add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
 # add_executable(DCSBiosRP2350 examples/General_RP2350_Examples/RP2350_Zero_RS485_Master.cpp)
+
+#****** Right Utility #2 chaser (RP2350-Zero standalone) *********
+# add_executable(DCSBiosRP2350 test_programs/Right_Utility_chaser_RP2350-Zero.cpp)
 
 
 #****** Test Programs *********
@@ -87,9 +93,10 @@ pico_sdk_init()
 # add_executable(DCSBiosRP2350 test_programs/epaper_test.cpp)
 # add_executable(DCSBiosRP2350 test_programs/X27_DRV8833_test.cpp)
 # add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_led_demo.cpp)
-add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_switec_demo.cpp)
+# add_executable(DCSBiosRP2350 examples/pico2/pico2_i2c_switec_demo.cpp)
 # add_executable(DCSBiosRP2350 test_programs/i2c_frame_unittest.cpp)
 # add_executable(DCSBiosRP2350 test_programs/gpio_scan.cpp)
+# add_executable(DCSBiosRP2350 test_programs/i2c_hall_switch_test.cpp)
 
 pico_set_program_name(DCSBiosRP2350 "DCSBiosRP2350")
 pico_set_program_version(DCSBiosRP2350 "0.1")
@@ -99,7 +106,7 @@ pico_enable_stdio_uart(DCSBiosRP2350 0)
 pico_enable_stdio_usb(DCSBiosRP2350 1)
 
 # Enable Arduino RS485 framing compatibility in this example build
-#target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
+target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
 
 # Compile ws2812.pio into ws2812.pio.h
 pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/ws2812.pio
@@ -157,9 +164,8 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/ST7789_numbers.cpp
     src/internal/I2cFrame.cpp
     src/internal/I2cBusHwMaster.cpp
-    src/internal/I2cCommand.cpp
-    src/internal/I2cProtocol.cpp
     src/internal/I2cOutputListener.cpp
+    src/internal/I2cInputPanel.cpp
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 

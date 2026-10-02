@@ -65,4 +65,71 @@ bool I2cBusHwMaster::readFrame(uint8_t addr, uint8_t reg, uint8_t cmd,
     return true;
 }
 
+// Write a request frame with no STOP, then read exactly rxLen bytes back.
+//
+// readFrame() above cannot be used against a normal Wire slave: it always
+// requests I2C_FRAME_MAX_SIZE (254) bytes, and a slave whose onRequest handler
+// streams a shorter response will NAK or time out. Slaves here use a
+// fixed-size response frame, so the caller states the exact length.
+bool I2cBusHwMaster::readFrameSized(uint8_t addr, const uint8_t *writeData, uint8_t writeLen,
+                                    uint8_t *rxBuf, uint8_t rxLen,
+                                    uint32_t timeout_ms) {
+    if (!initialized_) init_();
+    if (writeData == nullptr || rxBuf == nullptr) return false;
+    if (writeLen == 0 || rxLen < I2C_FRAME_OVERHEAD) return false;
+
+    absolute_time_t deadline = make_timeout_time_ms(timeout_ms);
+
+    int written = i2c_write_blocking_until(i2c_, addr, writeData, writeLen, true, deadline);
+    if (written != (int)writeLen) return false;
+
+    int read = i2c_read_blocking_until(i2c_, addr, rxBuf, rxLen, false, deadline);
+    return (read == (int)rxLen);
+}
+
+void I2cBusHwMaster::recoverBus() {
+    if (!initialized_) return;
+
+    // Hand-clock the bus. SDK 2.x removed i2c_recover_bus(), so do it here:
+    // a slave that resets mid-transaction can leave the RP2350's PIO state
+    // machine out of step or SDA held low, after which every transfer NACKs.
+    i2c_deinit(i2c_);
+
+    // Give the slave's pull-up a moment to release SDA on its own (it usually
+    // releases as soon as it finishes or aborts its own transmission).
+    for (int i = 0; i < RECOVER_WAIT_MS && !gpio_get(sda_); i++) {
+        sleep_ms(1);
+    }
+
+    // Up to nine SCL pulses shift out whatever byte the slave was mid-way
+    // through sending.
+    for (int i = 0; i < 9 && !gpio_get(sda_); i++) {
+        gpio_set_dir(scl_, GPIO_OUT);
+        gpio_put(scl_, 0);
+        sleep_us(RECOVER_PULSE_US);
+        gpio_put(scl_, 1);
+        sleep_us(RECOVER_PULSE_US);
+        gpio_set_dir(scl_, GPIO_IN);
+        sleep_us(RECOVER_PULSE_US);
+    }
+
+    // STOP: SDA low while SCL is high, then release SDA.
+    gpio_set_dir(sda_, GPIO_OUT);
+    gpio_put(sda_, 0);
+    sleep_us(RECOVER_PULSE_US);
+    gpio_set_dir(scl_, GPIO_OUT);
+    gpio_put(scl_, 1);
+    sleep_us(RECOVER_PULSE_US);
+    gpio_set_dir(scl_, GPIO_IN);
+    sleep_us(RECOVER_PULSE_US);
+    gpio_set_dir(sda_, GPIO_IN);
+
+    // Re-arm the peripheral and hand the pins back to it.
+    i2c_init(i2c_, baud_);
+    gpio_set_function(sda_, GPIO_FUNC_I2C);
+    gpio_set_function(scl_, GPIO_FUNC_I2C);
+    gpio_pull_up(sda_);
+    gpio_pull_up(scl_);
+}
+
 } // namespace DcsBios

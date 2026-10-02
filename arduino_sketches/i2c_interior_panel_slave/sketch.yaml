@@ -1,0 +1,1 @@
+default_fqbn: CH32_Arduino:ch32v:CH32V00x_EVT:pnum=CH32V003F4,clock=48MHz_HSI,opt=osstd,dbg=none,rtlib=nano,upload_method=swdMethod

@@ -3,7 +3,7 @@
  *
  * Included by all Arduino I2C slave sketches that communicate with the
  * DCS-BIOS RP2350 I2C master. Must stay in sync with src/internal/I2cFrame.h
- * and src/internal/I2cCommand.h in the main project.
+ * (wire format, CRC-8, command IDs, register flags) in the main project.
  *
  * Frame wire format: [reg:1][cmd:1][len:1][data:len][crc8:1]
  * CRC-8: poly 0x07 (custom, not Dallas/Maxim 1-Wire), init 0x00
@@ -19,7 +19,7 @@
 #define FRAME_IDX_LEN     2
 #define FRAME_IDX_DATA    3
 
-// --- I2C commands (matches I2cCmd enum in I2cCommand.h) ---
+// --- I2C commands (matches I2cCmd enum in I2cFrame.h) ---
 #define CMD_SET_POSITION    0x01
 #define CMD_SET_ANGLE       0x02
 #define CMD_HOME_SWEEP      0x03

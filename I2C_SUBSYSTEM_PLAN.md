@@ -86,10 +86,11 @@ extends `PollingInput`, reads incoming frames, calls
 - `I2cFrame.{h,cpp}` — frame encode/decode, Dallas CRC-8
 - `I2cBus.h` — abstract bus interface
 - `I2cBusHwMaster.{h,cpp}` — concrete i2c1 master implementation
-- `I2cCommand.{h,cpp}` — command enum + handler registry
-- `I2cProtocol.{h,cpp}` — SYSTEM register default handlers
 - `I2cOutputListener.{h,cpp}` — DCS-BIOS→I2C listener (Int16Buffer subclass)
-- `I2cInputListener` — documented placeholder; implemented in Phase 2+
+- `I2cInputPanel.{h,cpp}` — panel→sim poller + PollingInput wrappers
+  (`I2cInputSwitch2Pos`, `I2cInputSwitch3Pos2Bit`, `I2cInputPotentiometer`);
+  implemented in Phase 2 (supersedes the `I2cInputListener` placeholder below,
+  and the deleted `I2cCommand`/`I2cProtocol` registry stubs)
 - `examples/pico2/pico2_i2c_led_demo.cpp` — Pico 2 demo firmware
 - `test_programs/i2c_frame_unittest.cpp` — frame unit tests
 - `arduino_sketches/i2c_gauge_slave_led/i2c_gauge_slave_led.ino` — ref sketch

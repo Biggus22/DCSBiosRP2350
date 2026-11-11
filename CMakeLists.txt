@@ -56,8 +56,26 @@ pico_sdk_init()
  # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Right_Utility_RP2350-Zero)
  # add_executable(DCSBiosRP2350 examples/F-4E/F-4E_TACAN_RP2350-Zero.cpp)
 
+#****** Compass Control Panel (RP2350-Zero + ATtiny1614 I2C gauge slave) ******
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Compass_RP2350-Zero.cpp)
+
+#****** Environmental Control Panel (RP2350-Zero, composite CDC + USB HID gamepad) ******
+add_executable(DCSBiosRP2350 examples/F-4E/F-4E_ECS_RP2350-Zero.cpp)
+# Keep in sync with the active add_executable above: 1 for panels whose USB
+# device includes the HID gamepad interface (see src/internal/usb_descriptors.c),
+# 0 for all others.
+set(USB_HID_GAMEPAD 1)
+
+#****** Exterior Lighting Control (RP2350-Zero) — hardware test on ECS board ******
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Exterior_Lighting_Control_RP2350-Zero.cpp)
+
 #****** Interior Lighting Console (RP2350-Zero + CH32V003 I2C panel) *********
-add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Interior_Lighting_Console_RP2350-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Interior_Lighting_Console_RP2350-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Weapons_Panel_RP2350-Zero.cpp)
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Exterior_Lighting_Control_RP2350-Zero.cpp)
+
+#****** Exterior Lighting Control (RP2350-Zero + CH32V003 I2C panel) *********
+# add_executable(DCSBiosRP2350 examples/F-4E/F-4E_Exterior_Lighting_Control_RP2350-Zero.cpp)
 
 #****** Arduino RS485 Compatibility (Pico Master) *********
 # add_executable(DCSBiosRP2350 examples/RS485_Arduino_Master_Pico.cpp)
@@ -107,6 +125,16 @@ pico_enable_stdio_usb(DCSBiosRP2350 1)
 
 # Enable Arduino RS485 framing compatibility in this example build
 target_compile_definitions(DCSBiosRP2350 PRIVATE DCSBIOS_RS485_ARDUINO)
+
+if(USB_HID_GAMEPAD)
+    # Panels with the HID gamepad provide their own composite CDC + vendor
+    # reset + HID USB descriptors, replacing the SDK's CDC-only defaults.
+    target_compile_definitions(DCSBiosRP2350 PRIVATE
+        DCSBIOS_USB_HID_GAMEPAD
+        PICO_STDIO_USB_USE_DEFAULT_DESCRIPTORS=0
+        CFG_TUD_HID=1
+    )
+endif()
 
 # Compile ws2812.pio into ws2812.pio.h
 pico_generate_pio_header(DCSBiosRP2350 ${CMAKE_CURRENT_SOURCE_DIR}/src/internal/ws2812.pio
@@ -166,6 +194,8 @@ target_sources(DCSBiosRP2350 PRIVATE
     src/internal/I2cBusHwMaster.cpp
     src/internal/I2cOutputListener.cpp
     src/internal/I2cInputPanel.cpp
+    src/internal/UsbHidGamepad.cpp
+    src/internal/usb_descriptors.c
     )
 pico_add_extra_outputs(DCSBiosRP2350)
 

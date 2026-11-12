@@ -4,6 +4,7 @@
 
 # CMake build directories
 build/
+build_*/
 bin/
 out/
 cmake-build-*/
@@ -286,6 +287,7 @@ LEFT_SUBPANEL_PINMAP.md
 VID6606 manual 060927.pdf
 DataAnalysisExpert/added_addresses_11_2.txt
 .opencode/plans/enchanted-plotting-compass.md
+.opencode/magic-context/
 .hermes/
 
 # Scratch planning documents (delete once the board works)

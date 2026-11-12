@@ -8,6 +8,17 @@
 
 namespace DcsBios {
 
+	// Raw ADC counts below this floor are treated as a hard zero. A knob at
+	// its mechanical stop still reads tens of counts of offset/noise on the
+	// RP2350 ADC, which would otherwise leave the control short of its
+	// endpoint. With reverse mapping the floor produces a dead zone at the
+	// 65535 end instead (raw 0 is the maximum there).
+	static constexpr uint ADC_ZERO_FLOOR = 150;
+
+	static inline uint clampAdcZero(uint raw) {
+		return (raw < ADC_ZERO_FLOOR) ? 0u : raw;
+	}
+
 	template <unsigned long pollIntervalMs = POLL_EVERY_TIME, unsigned int hysteresis = 128, unsigned int ewma_divisor = 5>
 	class PotentiometerEWMA : PollingInput, public ResettableInput {
 	private:
@@ -23,7 +34,7 @@ void pollInput() {
 			uint rawValue;
 
 			adc_select_input(adc_channel_);
-			rawValue = adc_read();
+			rawValue = clampAdcZero(adc_read());
 
 			unsigned int state;
 			if (reverse_)
@@ -92,7 +103,7 @@ void pollInput() {
 			adc_gpio_init(gpio_pin_);
 
 			adc_select_input(adc_channel_);
-			uint raw = adc_read();
+			uint raw = clampAdcZero(adc_read());
 
 			if (reverse_)
 				lastState_ = mapInt(raw, input_min_, input_max_, 65535, 0);
@@ -103,15 +114,22 @@ void pollInput() {
 		}
 
 		// This function sets the message string.
-void SetControl(const char* msg) {
-			msg_ = msg;
-		}
+	void SetControl(const char* msg) {
+		msg_ = msg;
+	}
+
+		// Returns the value most recently reported to DCS (0..65535). Lets a
+		// panel reuse the same knob for a local purpose, e.g. dimming an LED
+		// strip, without a second ADC read.
+	unsigned int getValue() const {
+		return lastState_;
+	}
 
 		// This function calls resetState to reset the state.
-void resetThisState() {
-			this->resetState();
-		}
-	};
+	void resetThisState() {
+		this->resetState();
+	}
+};
 
 	// Low-resolution potentiometer: reduce ADC resolution by dropping low bits
 	// to reduce sensitivity and message churn with minimal CPU cost.
@@ -124,7 +142,7 @@ void resetThisState() {
 
 		void pollInput() {
 			adc_select_input(adc_channel_);
-			uint rawValue = adc_read();
+			uint rawValue = clampAdcZero(adc_read());
 
 			// Quantize the value by dropping low bits.
 // Quantize by dropping `dropBits` LSBs (simple shift with rounding)
@@ -177,7 +195,7 @@ void resetThisState() {
 			}
 			adc_gpio_init(gpio_pin_);
 			adc_select_input(adc_channel_);
-			uint raw = adc_read();
+			uint raw = clampAdcZero(adc_read());
 			const uint quant = (raw + (1u << (dropBits ? (dropBits - 1) : 0))) >> dropBits;
 			const unsigned int maxRaw = 4095u >> dropBits;
 			if (reverse_)
@@ -205,7 +223,7 @@ void resetThisState() {
 
 		void pollInput() {
 			adc_select_input(adc_channel_);
-			uint rawValue = adc_read();
+			uint rawValue = clampAdcZero(adc_read());
 
 			const uint quant = (rawValue + (1u << (dropBits ? (dropBits - 1) : 0))) >> dropBits;
 			const unsigned int maxRaw = 4095u >> dropBits;
@@ -260,7 +278,7 @@ void resetThisState() {
 			}
 			adc_gpio_init(gpio_pin_);
 			adc_select_input(adc_channel_);
-			uint raw = adc_read();
+			uint raw = clampAdcZero(adc_read());
 			const uint quant = (raw + (1u << (dropBits ? (dropBits - 1) : 0))) >> dropBits;
 			const unsigned int maxRaw = 4095u >> dropBits;
 			if (reverse_)

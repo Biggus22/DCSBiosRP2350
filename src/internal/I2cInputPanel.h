@@ -14,11 +14,14 @@ namespace DcsBios {
 
 // Byte offsets inside a remote panel's STATUS_REQ response payload.
 // A panel is free to omit trailing fields; the poller validates against the
-// payload length it was constructed with.
+// payload length it was constructed with. Fields were only ever appended, so
+// a panel that speaks the original 5-byte layout keeps working unchanged.
 enum I2cInputField : uint8_t {
-    I2C_INPUT_STATE = 0,  // 1 byte bitfield of active-LOW input pins
-    I2C_INPUT_ADC_0 = 1,  // 2 bytes little-endian, raw 10-bit
-    I2C_INPUT_ADC_1 = 3,  // 2 bytes little-endian, raw 10-bit
+    I2C_INPUT_STATE = 0,   // 1 byte bitfield of active-LOW input pins
+    I2C_INPUT_ADC_0 = 1,   // 2 bytes little-endian, raw 10-bit
+    I2C_INPUT_ADC_1 = 3,   // 2 bytes little-endian, raw 10-bit
+    I2C_INPUT_STATE2 = 5,  // 1 byte, second bitfield of active-LOW input pins
+    I2C_INPUT_VALUE = 6,   // 1 byte, small integer computed by the slave
 };
 
 // Polls a remote I2C input panel and caches its latest decoded state.
@@ -44,9 +47,15 @@ public:
     void poll();
 
     bool online() const { return online_; }
-    uint32_t failCount() const { return failCount_; }
-    uint8_t readState() const { return state_; }
+    uint32_t failCount()const { return failCount_; }
+    // Pin levels of the panel's state bytes. byteIndex 0 is I2C_INPUT_STATE,
+    // byteIndex 1 is I2C_INPUT_STATE2.
+    uint8_t readState(uint8_t byteIndex = 0) const {
+        return (byteIndex < 2) ? state_[byteIndex] : 0;
+    }
     bool readAdc(uint8_t field, uint16_t *out) const;
+    // Reads the single-byte value field (I2C_INPUT_VALUE).
+    bool readValue(uint8_t field, uint8_t *out) const;
 
     uint8_t slaveAddr() const { return slaveAddr_; }
     uint8_t payloadLen() const { return payloadLen_; }
@@ -55,7 +64,7 @@ private:
     static bool decode_(const uint8_t *rx, uint8_t rxLen,
                         uint8_t expectedReg, uint8_t expectedCmd,
                         uint8_t expectedPayloadLen,
-                        uint8_t *state, uint16_t *adc);
+                        uint8_t *state, uint16_t *adc, uint8_t *value);
 
     I2cBus *bus_;
     uint8_t slaveAddr_;
@@ -65,7 +74,8 @@ private:
     uint32_t pollIntervalMs_;
     uint32_t timeoutMs_;
     unsigned long lastPollMs_;
-    uint8_t state_;
+    uint8_t state_[2];
+    uint8_t value_;
     uint16_t adc_[MAX_ADC_CHANNELS];
     bool online_;
     uint32_t failCount_;
@@ -79,6 +89,7 @@ private:
     const char *msg_;
     I2cInputPanel *panel_;
     uint8_t bit_;
+    uint8_t stateByte_;
     bool reverse_;
     char debounceSteadyState_;
     char lastState_;
@@ -90,7 +101,7 @@ private:
     void pollInput() {
         if (!panel_->online()) return;
 
-        char state = ((panel_->readState() & bit_) == 0) ? 1 : 0;
+        char state = ((panel_->readState(stateByte_) & bit_) == 0) ? 1 : 0;
         if (reverse_) state = !state;
 
         unsigned long now = to_ms_since_boot(get_absolute_time());
@@ -109,10 +120,11 @@ private:
 
 public:
     I2cInputSwitch2PosT(I2cInputPanel *panel, uint8_t bit, const char *msg,
-                         bool reverse = false, unsigned long debounceDelay = 50)
+                         bool reverse = false, unsigned long debounceDelay = 50,
+                         uint8_t stateByte = 0)
         : PollingInput(pollIntervalMs), msg_(msg), panel_(panel), bit_(bit),
-          reverse_(reverse), debounceSteadyState_(-1), lastState_(-1),
-          debounceDelay_(debounceDelay) {}
+           stateByte_(stateByte), reverse_(reverse), debounceSteadyState_(-1),
+           lastState_(-1), debounceDelay_(debounceDelay) {}
 
     void SetControl(const char *msg) { msg_ = msg; }
     void resetThisState() override { this->resetState(); }
@@ -207,6 +219,129 @@ public:
 };
 
 typedef I2cInputSwitch3Pos2BitT<> I2cInputSwitch3Pos2Bit;
+
+// Multi-position switch wired one-hot: one pin per position, with the selected
+// position's pin pulled LOW. Mirrors SwitchMultiPosT, except the positions
+// arrive as a bitfield in one of the panel's state bytes instead of as separate
+// GPIOs. A state with no active pin (between detents) or with more than one
+// active pin (during a transition) holds the last reported position.
+template <unsigned long pollIntervalMs = POLL_EVERY_TIME, int numPositions = 8>
+class I2cInputSwitchMultiPosT : PollingInput, public ResettableInput {
+private:
+    const char *msg_;
+    I2cInputPanel *panel_;
+    uint8_t stateByte_;
+    int lastState_;
+    int debounceCandidate_;
+    unsigned long debounceDelay_;
+    unsigned long lastDebounceTime_ = 0;
+
+    // Returns the position of the single active (LOW) pin, or -1 when the
+    // bitfield is not a valid one-hot code.
+    int decode_(uint8_t stateByte) const {
+        int found = -1;
+        for (int i = 0; i < numPositions && i < 8; i++) {
+            const uint8_t mask = (uint8_t)(1u << i);
+            if ((stateByte & mask) == 0) {
+                if (found >= 0) return -1;  // two or more pins active
+                found = i;
+            }
+        }
+        return found;
+    }
+
+    void resetState() {
+        lastState_ = -1;
+        debounceCandidate_ = -1;
+        lastDebounceTime_ = 0;
+    }
+
+    void pollInput() {
+        if (!panel_->online()) return;
+
+        const int position = decode_(panel_->readState(stateByte_));
+        if (position < 0) return;  // not a valid one-hot code: hold last position
+
+        const unsigned long now = to_ms_since_boot(get_absolute_time());
+        if (position != debounceCandidate_) {
+            debounceCandidate_ = position;
+            lastDebounceTime_ = now;
+        }
+        if ((now - lastDebounceTime_) >= debounceDelay_) {
+            if (debounceCandidate_ != lastState_) {
+                char buf[4];
+                snprintf(buf, sizeof(buf), "%d", debounceCandidate_);
+                if (tryToSendDcsBiosMessage(msg_, buf)) lastState_ = debounceCandidate_;
+            }
+        }
+    }
+
+public:
+    I2cInputSwitchMultiPosT(I2cInputPanel *panel, uint8_t stateByte, const char *msg,
+                             unsigned long debounceDelay = 50)
+        : PollingInput(pollIntervalMs), msg_(msg), panel_(panel), stateByte_(stateByte),
+          lastState_(-1), debounceCandidate_(-1), debounceDelay_(debounceDelay) {}
+
+    void SetControl(const char *msg) { msg_ = msg; }
+    void resetThisState() override { this->resetState(); }
+    int getState() const { return lastState_; }
+};
+
+typedef I2cInputSwitchMultiPosT<> I2cInputSwitchMultiPos;
+
+// Small integer computed by the slave - for example a switch position the
+// slave decoded from an analog input. The value is sent to DCS-BIOS as a
+// plain integer.
+template <unsigned long pollIntervalMs = POLL_EVERY_TIME>
+class I2cInputValueT : PollingInput, public ResettableInput {
+private:
+    const char *msg_;
+    I2cInputPanel *panel_;
+    uint8_t field_;
+    int lastState_;
+    int debounceCandidate_;
+    unsigned long debounceDelay_;
+    unsigned long lastDebounceTime_ = 0;
+
+    void resetState() {
+        lastState_ = -1;
+        debounceCandidate_ = -1;
+        lastDebounceTime_ = 0;
+    }
+
+    void pollInput() {
+        if (!panel_->online()) return;
+
+        uint8_t raw = 0;
+        if (!panel_->readValue(field_, &raw)) return;
+
+        const int value = (int)raw;
+        const unsigned long now = to_ms_since_boot(get_absolute_time());
+        if (value != debounceCandidate_) {
+            debounceCandidate_ = value;
+            lastDebounceTime_ = now;
+        }
+        if ((now - lastDebounceTime_) >= debounceDelay_) {
+            if (debounceCandidate_ != lastState_) {
+                char buf[5];
+                snprintf(buf, sizeof(buf), "%d", debounceCandidate_);
+                if (tryToSendDcsBiosMessage(msg_, buf)) lastState_ = debounceCandidate_;
+            }
+        }
+    }
+
+public:
+    I2cInputValueT(I2cInputPanel *panel, uint8_t field, const char *msg,
+                    unsigned long debounceDelay = 50)
+        : PollingInput(pollIntervalMs), msg_(msg), panel_(panel), field_(field),
+          lastState_(-1), debounceCandidate_(-1), debounceDelay_(debounceDelay) {}
+
+    void SetControl(const char *msg) { msg_ = msg; }
+    void resetThisState() override { this->resetState(); }
+    int getState() const { return lastState_; }
+};
+
+typedef I2cInputValueT<> I2cInputValue;
 
 // Potentiometer on one of the panel's ADC fields. Mirrors PotentiometerEWMA
 // (EWMA smoothing, bounded step per poll, hysteresis, extremes always sent)

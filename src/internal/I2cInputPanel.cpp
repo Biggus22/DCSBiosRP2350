@@ -7,12 +7,12 @@ I2cInputPanel::I2cInputPanel(I2cBus *bus, uint8_t slaveAddr, uint8_t regId, uint
                                uint8_t payloadLen, uint32_t pollIntervalMs, uint32_t timeoutMs)
     : bus_(bus), slaveAddr_(slaveAddr), regId_(regId), cmd_(cmd), payloadLen_(payloadLen),
       pollIntervalMs_(pollIntervalMs), timeoutMs_(timeoutMs), lastPollMs_(0),
-      state_(0), adc_{0, 0}, online_(false), failCount_(0) {}
+      state_{0, 0}, value_(0), adc_{0, 0}, online_(false), failCount_(0) {}
 
 bool I2cInputPanel::decode_(const uint8_t *rx, uint8_t rxLen,
                              uint8_t expectedReg, uint8_t expectedCmd,
                              uint8_t expectedPayloadLen,
-                             uint8_t *state, uint16_t *adc) {
+                             uint8_t *state, uint16_t *adc, uint8_t *value) {
     uint8_t reg = 0;
     uint8_t cmd = 0;
     uint8_t dataLen = 0;
@@ -29,7 +29,9 @@ bool I2cInputPanel::decode_(const uint8_t *rx, uint8_t rxLen,
 
     if (data == nullptr) return false;
 
-    *state = (expectedPayloadLen > I2C_INPUT_STATE) ? data[I2C_INPUT_STATE] : 0;
+    state[0] = (expectedPayloadLen > I2C_INPUT_STATE) ? data[I2C_INPUT_STATE] : 0;
+    state[1] = (expectedPayloadLen > I2C_INPUT_STATE2) ? data[I2C_INPUT_STATE2] : 0;
+    *value = (expectedPayloadLen > I2C_INPUT_VALUE) ? data[I2C_INPUT_VALUE] : 0;
 
     for (uint8_t i = 0; i < MAX_ADC_CHANNELS; i++) {
         const uint8_t off = (uint8_t)(I2C_INPUT_ADC_0 + (i * 2));
@@ -70,15 +72,18 @@ void I2cInputPanel::poll() {
         return;
     }
 
-    uint8_t state = 0;
+    uint8_t state[2] = {0, 0};
     uint16_t adc[MAX_ADC_CHANNELS] = {0, 0};
-    if (!decode_(rx, rxLen, regId_, cmd_, payloadLen_, &state, adc)) {
+    uint8_t value = 0;
+    if (!decode_(rx, rxLen, regId_, cmd_, payloadLen_, state, adc, &value)) {
         online_ = false;
         failCount_++;
         return;
     }
 
-    state_ = state;
+    state_[0] = state[0];
+    state_[1] = state[1];
+    value_ = value;
     adc_[0] = adc[0];
     adc_[1] = adc[1];
     online_ = true;
@@ -88,6 +93,13 @@ bool I2cInputPanel::readAdc(uint8_t field, uint16_t *out) const {
     if (!online_ || out == nullptr) return false;
     if (field != I2C_INPUT_ADC_0 && field != I2C_INPUT_ADC_1) return false;
     *out = adc_[(field == I2C_INPUT_ADC_0) ? 0 : 1];
+    return true;
+}
+
+bool I2cInputPanel::readValue(uint8_t field, uint8_t *out) const {
+    if (!online_ || out == nullptr) return false;
+    if (field != I2C_INPUT_VALUE) return false;
+    *out = value_;
     return true;
 }
 

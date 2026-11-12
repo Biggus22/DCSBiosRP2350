@@ -14,13 +14,20 @@ public:
         STEPS_16BIT    = 2,  // raw 16-bit steps: passed straight through
         ANGLE_CENTIDEG = 3,  // centidegrees: DCS range 0-65535 scaled to 0-31500
         BACKLIGHT      = 4,  // 8-bit backlight: DCS range 0-65535 scaled to 0-255
+        STEPS_SCALED   = 5,  // DCS range 0-65535 scaled to 0-span steps (optional
+                             // reversal), with a deadband: the whole mapping and
+                             // its tuning live on the master, and the slave just
+                             // does setPosition(steps).
     };
 
     I2cOutputListener(unsigned int address,
                       I2cBus *bus,
                       uint8_t slaveAddr,
                       uint8_t regId = 0x01,
-                      ScaleMode scaleMode = LED_BRIGHTNESS);
+                      ScaleMode scaleMode = LED_BRIGHTNESS,
+                      uint16_t span = 0,
+                      bool reversed = false,
+                      uint16_t deadband = 3);
 
     void loop() override;
 
@@ -29,6 +36,10 @@ private:
     uint8_t slaveAddr_;
     uint8_t regId_;
     ScaleMode scaleMode_;
+    uint16_t span_;       // STEPS_SCALED: full-scale step count
+    bool reversed_;       // STEPS_SCALED: invert the DCS->steps direction
+    uint16_t deadband_;   // STEPS_SCALED: minimum change worth sending, in steps
+    int32_t lastSteps_;   // STEPS_SCALED: last value sent, -1 = none yet
 
     void sendFrame_(uint8_t cmd, const uint8_t *data, uint8_t dataLen);
 };

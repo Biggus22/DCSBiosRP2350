@@ -167,8 +167,50 @@
     #define UART0_RX 1
     #define RS485_EN 2
 
+#elif defined(RP2350_ZERO_BOARD)
+    #define HEARTBEAT_LED 25
+
+    #define I2C1_SDA 6
+    #define I2C1_SCL 7
+
+    #define UART0_TX 0
+    #define UART0_RX 1
+    #define RS485_EN 2
+
+    #define ADDR0 36
+    #define ADDR1 37
+    #define ADDR2 38
+    #define ADDR3 39
+
+    // RGB LED on GPIO16 (Waveshare RP2350-Zero)
+    #define NEO_DRIVE_PIN 16
+    #define NEO_LED1 0
+    #define NEO_LED2 1
+    #define NEO_LED3 2
+    #define NEO_LED4 3
+    #define NEO_LED5 4
+    #define NEO_LED6 5
+    #define NEO_LED7 6
+    #define NEO_LED8 7
+    #define NEO_LED9 8
+    #define NEO_LED10 9
+    #define NEO_LED11 10
+    #define NEO_LED12 11
+    #define NEO_LED13 12
+    #define NEO_LED14 13
+    #define NEO_LED15 14
+    #define NEO_LED16 15
+    #define NEO_LED17 16
+    #define NEO_LED18 17
+    #define NEO_LED19 18
+    #define NEO_LED20 19
+    #define NEO_LED21 20
+    #define NEO_LED22 21
+    #define NEO_LED23 22
+    #define NEO_LED24 23
+
 #elif defined(PICO_BOARD) //comment out pins as required here.
-    #define HEARTBEAT_LED 16
+    #define HEARTBEAT_LED 25
     //#define NEO_DRIVE_PIN 25
     //#define ERROR_LED 32
 

@@ -7,12 +7,19 @@ I2cOutputListener::I2cOutputListener(unsigned int address,
                                      I2cBus *bus,
                                      uint8_t slaveAddr,
                                      uint8_t regId,
-                                     ScaleMode scaleMode)
+                                     ScaleMode scaleMode,
+                                     uint16_t span,
+                                     bool reversed,
+                                     uint16_t deadband)
     : Int16Buffer(address),
       bus_(bus),
       slaveAddr_(slaveAddr),
       regId_(regId),
-      scaleMode_(scaleMode) {}
+      scaleMode_(scaleMode),
+      span_(span),
+      reversed_(reversed),
+      deadband_(deadband),
+      lastSteps_(-1) {}
 
 void I2cOutputListener::loop() {
     if (!hasUpdatedData()) return;
@@ -56,6 +63,28 @@ void I2cOutputListener::loop() {
             dataLen = 1;
             cmd = I2C_CMD_SET_BACKLIGHT;
             break;
+
+        case STEPS_SCALED: {
+            // The master owns the whole mapping: full-scale span, direction and
+            // a deadband that absorbs DCS jitter (so the slave never has to be
+            // reflashed to tune the gauge). Endpoints always go out.
+            uint16_t steps = (uint16_t)(((uint32_t)raw * span_) / 65535u);
+            if (steps > span_) steps = span_;
+            if (reversed_) steps = (uint16_t)(span_ - steps);
+
+            const int32_t diff = (int32_t)steps - lastSteps_;
+            const bool atEnd = (steps == 0 || steps == span_);
+            if (lastSteps_ >= 0 && !atEnd && (diff < 0 ? -diff : diff) < (int32_t)deadband_) {
+                return;
+            }
+            lastSteps_ = steps;
+
+            dataBuf[0] = steps & 0xFF;
+            dataBuf[1] = (steps >> 8) & 0xFF;
+            dataLen = 2;
+            cmd = I2C_CMD_SET_POSITION;
+            break;
+        }
     }
 
     sendFrame_(cmd, dataBuf, dataLen);

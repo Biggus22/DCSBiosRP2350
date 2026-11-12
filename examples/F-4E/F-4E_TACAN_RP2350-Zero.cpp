@@ -2,6 +2,7 @@
 #define PICO_BOARD
 #endif
 #include <stdio.h>
+#include <cstdio>
 #include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
@@ -24,19 +25,25 @@ SSD1306 tacanDisplay(i2c1, 0x3C);
 uart_inst_t *rs485_uart = uart0;
 
 const uint8_t pltTacanModePins[5] = {11, 8, 9, 10, 12};
-DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 5> pltTacanMode("PLT_TACAN_MODE", pltTacanModePins);
+DcsBios::SwitchMultiPosT<POLL_EVERY_TIME, 5> pltTacanMode("PLT_TACAN_MODE", pltTacanModePins);//F-4 and F-14 simultaneously
 
-DcsBios::RotaryEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, 5> pltTacanSetOnes("PLT_TACAN_SET_ONES", "DEC", "INC", 26, 13);
-DcsBios::RotaryEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, 5> pltTacanSetTens("PLT_TACAN_SET_TENS", "DEC", "INC", 27, 28);
+DcsBios::RotaryEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, 5> pltTacanSetOnes("PLT_TACAN_SET_ONES", "DEC", "INC", 26, 13);//F-4
+DcsBios::RotaryEncoderT <POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, 5> pltTacanDialOnes("PLT_TACAN_DIAL_ONES", "DEC", "INC", 26, 13);//F-14
+DcsBios::RotaryEncoderT<POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, 5> pltTacanSetTens("PLT_TACAN_SET_TENS", "DEC", "INC", 27, 28);//F-4
+DcsBios::RotaryEncoderT <POLL_EVERY_TIME, DcsBios::TWO_STEPS_PER_DETENT, 5> pltTacanDialTens("PLT_TACAN_DIAL_TENS", "DEC", "INC", 27, 28);//F-14
 
 const uint8_t pltTacanSetXyPins[2] = {6, 7};
-DcsBios::Switch3Pos2Pin pltTacanSetXy("PLT_TACAN_SET_XY", pltTacanSetXyPins[0], pltTacanSetXyPins[1]);
+DcsBios::Switch3Pos2Pin pltTacanSetXy("PLT_TACAN_SET_XY", pltTacanSetXyPins[0], pltTacanSetXyPins[1]);//F-4
+const uint8_t pltTacanChannelPins[2] = {6, 7};
+DcsBios::Switch3Pos2Pin pltTacanChannel("PLT_TACAN_CHANNEL", pltTacanChannelPins [0], pltTacanChannelPins [1]);//F-14
 
-DcsBios::Switch2Pos pltTacanTest("PLT_TACAN_TEST", 5);
+DcsBios::Switch2Pos pltTacanTest("PLT_TACAN_TEST", 5);//F-4
+DcsBios::Switch2Pos pltTacanBit("PLT_TACAN_BIT", 5);
+DcsBios::Potentiometer pltTacanVolume("PLT_TACAN_VOLUME", 29, false, 0, 4095);//F-4 and F-14 simultaneously
 
-DcsBios::Potentiometer pltTacanVolume("PLT_TACAN_VOLUME", 29, false, 0, 4095);
 
-DcsBios::LED pltTacanTestLight(0x2BBC, 0x8000, 4);
+DcsBios::LED pltTacanTestLight(0x2BBC, 0x8000, 4);//F-4
+DcsBios::LED pltTacanBitLight(0x122C, 0x0400, 4);//F-14
 
 void onPltIntLightConsoleChange(unsigned int consoleBrightness) {
     uint8_t intensity = (uint8_t)((consoleBrightness * 255) / 65535);
@@ -62,12 +69,44 @@ void onF14PltIntLightConsoleChange(unsigned int consoleBrightness) {
 }
 DcsBios::IntegerBuffer f14PltIntLightConsoleBuffer(F_14_PLT_LIGHT_INTENT_CONSOLE, onF14PltIntLightConsoleChange);
 
-void onPltTacanChannelChange(char* newValue) {
+void updateTacanDisplay(const char* str) {
     tacanDisplay.clear();
-    tacanDisplay.drawString(38, 15, newValue, 2, 2);
+    tacanDisplay.drawStringMs33558(38, 4, str);
     tacanDisplay.display();
 }
+
+static uint8_t f14TacanTens = 0;
+static uint8_t f14TacanOnes = 0;
+static uint8_t f14TacanXY = 0;
+
+void updateF14TacanDisplay() {
+    char buf[5];
+    snprintf(buf, sizeof(buf), "%d%c", f14TacanTens * 10 + f14TacanOnes, f14TacanXY ? 'Y' : 'X');
+    updateTacanDisplay(buf);
+}
+
+void onPltTacanChannelChange(char* newValue) {
+    updateTacanDisplay(newValue);
+}
 DcsBios::StringBuffer<4> pltTacanChannelBuffer(F_4E_PLT_TACAN_CHANNEL_A, onPltTacanChannelChange);
+
+void onF14PltTacanDialTensChange(unsigned int newValue) {
+    f14TacanTens = (uint8_t)newValue;
+    updateF14TacanDisplay();
+}
+DcsBios::IntegerBuffer f14PltTacanDialTensBuffer(F_14_PLT_TACAN_DIAL_TENS, onF14PltTacanDialTensChange);
+
+void onF14PltTacanDialOnesChange(unsigned int newValue) {
+    f14TacanOnes = (uint8_t)newValue;
+    updateF14TacanDisplay();
+}
+DcsBios::IntegerBuffer f14PltTacanDialOnesBuffer(F_14_PLT_TACAN_DIAL_ONES, onF14PltTacanDialOnesChange);
+
+void onF14PltTacanChannelChange(unsigned int newValue) {
+    f14TacanXY = (uint8_t)newValue;
+    updateF14TacanDisplay();
+}
+DcsBios::IntegerBuffer f14PltTacanChannelBuffer(F_14_PLT_TACAN_CHANNEL, onF14PltTacanChannelChange);
 
 int main()
 {
@@ -85,7 +124,7 @@ int main()
 
     tacanDisplay.init();
     tacanDisplay.clear();
-    tacanDisplay.drawString(38, 20, "----", 3, 3);
+    tacanDisplay.drawStringMs33558(38, 4, "XXXX");
     tacanDisplay.display();
 
     externalLeds.begin(NUM_LEDS);

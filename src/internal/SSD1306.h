@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include <cstring>
+#include "MS33558_20.h"
 
 static const uint8_t font5x7[] = {
     0x00,0x00,0x00,0x00,0x00,
@@ -180,6 +181,29 @@ public:
         while (*str) {
             drawChar(cx, y, *str, scaleX, scaleY);
             cx += (FONT_W + 1) * scaleX;
+            str++;
+        }
+    }
+
+    void drawStringMs33558(int x, int y, const char* str) {
+        int cx = x;
+        while (*str) {
+            uint8_t idx = MS33558_20_char_map[(uint8_t)*str];
+            if (idx != 255) {
+                uint8_t w = MS33558_20_glyph_widths[idx];
+                uint16_t off = MS33558_20_glyph_offsets[idx];
+                uint8_t bytesPerRow = (w + 7) / 8;
+                for (uint8_t row = 0; row < MS33558_20_height; row++) {
+                    for (uint8_t col = 0; col < w; col++) {
+                        uint16_t bitIdx = (uint16_t)row * bytesPerRow + col / 8;
+                        uint8_t bitPos = 7 - (col % 8);
+                        if (MS33558_20_bitmap[off + bitIdx] & (1 << bitPos)) {
+                            setPixel(cx + col, y + row);
+                        }
+                    }
+                }
+                cx += w + 1;
+            }
             str++;
         }
     }
